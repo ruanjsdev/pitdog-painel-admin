@@ -1,4 +1,4 @@
-# ⚙️ Pit Dog - Painel Administrativo
+# ⚙️ Pits Dog - Painel Administrativo
 
 Painel administrativo desenvolvido para o **Pit Dog**, criado para receber, organizar e gerenciar pedidos feitos pelo cardápio digital.
 
