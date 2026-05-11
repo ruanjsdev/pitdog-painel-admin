@@ -1,73 +1,57 @@
-# React + TypeScript + Vite
+# ⚙️ Pit Dog - Painel Administrativo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Painel administrativo desenvolvido para o **Pit Dog**, criado para receber, organizar e gerenciar pedidos feitos pelo cardápio digital.
 
-Currently, two official plugins are available:
+## 📌 Sobre o projeto
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Este projeto faz parte do sistema central do Pit Dog e tem como objetivo facilitar o controle dos pedidos dentro da lanchonete.
 
-## React Compiler
+Através do painel, a equipe poderá visualizar novos pedidos, acompanhar informações do cliente, alterar o status do pedido e manter a operação mais organizada.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🚀 Funcionalidades
 
-## Expanding the ESLint configuration
+- Recebimento de pedidos do cardápio digital
+- Visualização dos dados do cliente
+- Visualização dos itens do pedido
+- Controle de status do pedido
+- Organização dos pedidos por situação
+- Painel para acompanhamento em tempo real
+- Interface moderna e responsiva
+- Integração com o cardápio digital
+- Integração futura com bot de WhatsApp
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 📦 Status dos pedidos
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+O painel pode trabalhar com status como:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- 🟡 Aguardando aprovação
+- 🟢 Pedido confirmado
+- 🔥 Em preparo
+- 🛵 Saiu para entrega
+- ✅ Finalizado
+- ❌ Cancelado
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 🛠️ Tecnologias utilizadas
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+- React
+- TypeScript
+- Vite
+- JavaScript
+- CSS / Tailwind
+- Supabase
+- Git e GitHub
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 📁 Estrutura do projeto
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+```bash
+pitdog-painel-admin/
+├── public/
+├── src/
+│   ├── components/
+│   ├── pages/
+│   ├── services/
+│   ├── types/
+│   ├── utils/
+│   └── App.tsx
+├── package.json
+└── README.md
