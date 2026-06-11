@@ -22,9 +22,14 @@ type BackendCategory = Omit<MenuCategory, "imagem" | "imageUrl"> & {
 }
 
 type BackendProduct = Omit<MenuProduct, "imagem" | "imageUrl"> & {
+  addonIds?: string[]
   categoriaNome?: string
   destaque?: boolean
+  flavorIds?: string[]
+  flavorRequired?: boolean
+  hasFlavors?: boolean
   imagemUrl?: string | null
+  maxFlavors?: number
   permiteAdicionais?: boolean
   subtitulo?: string | null
 }
@@ -148,13 +153,18 @@ function mapProduct(product: BackendProduct): MenuProduct {
 
   return {
     ...product,
+    addonIds: product.addonIds ?? [],
     id: Number(product.id),
     categoriaId: Number(product.categoriaId),
     preco: Number(product.preco ?? 0),
     descricao: decodedDescription.description,
     highlight,
     destaque: Boolean(product.destaque) || Boolean(highlight),
+    flavorIds: product.flavorIds ?? [],
+    flavorRequired: product.flavorRequired ?? false,
+    hasFlavors: product.hasFlavors ?? false,
     permiteAdicionais: product.permiteAdicionais ?? false,
+    maxFlavors: product.maxFlavors ?? 1,
     subtitle: product.subtitle ?? highlight,
     imageUrl: product.imagemUrl ?? null,
     imagem: product.imagemUrl ?? null,
@@ -229,11 +239,16 @@ export const menuApi = {
     return mapProduct(await adminRequest<BackendProduct>(productsAdminPath, {
       body: JSON.stringify({
         ativo: product.ativo,
+        addonIds: product.addonIds ?? [],
         categoriaId: product.categoriaId,
         descricao: writeProductDescription(product.descricao, highlight),
         destaque: Boolean(highlight),
         highlight: highlight || null,
+        flavorIds: product.flavorIds ?? [],
+        flavorRequired: product.flavorRequired ?? false,
+        hasFlavors: product.hasFlavors ?? false,
         imagemUrl: product.imagem,
+        maxFlavors: product.maxFlavors ?? 1,
         nome: product.nome,
         permiteAdicionais: product.permiteAdicionais,
         preco: product.preco,
@@ -250,11 +265,16 @@ export const menuApi = {
     return mapProduct(await adminRequest<BackendProduct>(`${productsAdminPath}/${id}`, {
       body: JSON.stringify({
         ativo: product.ativo,
+        addonIds: product.addonIds ?? [],
         categoriaId: product.categoriaId,
         descricao: writeProductDescription(product.descricao, highlight),
         destaque: Boolean(highlight),
         highlight: highlight || null,
+        flavorIds: product.flavorIds ?? [],
+        flavorRequired: product.flavorRequired ?? false,
+        hasFlavors: product.hasFlavors ?? false,
         imagemUrl: product.imagem,
+        maxFlavors: product.maxFlavors ?? 1,
         nome: product.nome,
         permiteAdicionais: product.permiteAdicionais,
         preco: product.preco,

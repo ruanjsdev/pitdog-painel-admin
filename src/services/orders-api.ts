@@ -46,6 +46,13 @@ type BackendOrderItem = {
   quantidadeProduto?: number
   qtd?: number
   quantity?: number
+  flavorName?: string | null
+  flavorNames?: string[] | null
+  flavorId?: string | number | null
+  flavorIds?: Array<string | number> | null
+  sabor?: string | null
+  saborNome?: string | null
+  sabores?: string[] | null
   observacao?: string | null
   observacoes?: string | null
   obs?: string | null
@@ -230,10 +237,18 @@ function mapBackendOrder(order: BackendOrder): Order {
       const quantity = item.quantidade ?? item.quantidadeProduto ?? item.qtd ?? item.quantity ?? 1
       const base = `${quantity}x ${itemName}`
       const extra = adicionais ? ` + ${adicionais}` : ""
+      const flavorNames = [
+        ...(Array.isArray(item.flavorNames) ? item.flavorNames : []),
+        ...(Array.isArray(item.sabores) ? item.sabores : []),
+        item.flavorName,
+        item.saborNome,
+        item.sabor,
+      ].filter(Boolean)
+      const flavorText = flavorNames.length > 0 ? ` | Sabor: ${flavorNames.join(", ")}` : ""
       const observation = item.observacao ?? item.observacoes ?? item.obs
       const obs = observation ? ` (${observation})` : ""
 
-      return `${base}${extra}${obs}`
+      return `${base}${extra}${flavorText}${obs}`
     }),
     notes: "",
     payment: order.formaPagamento ? paymentLabels[order.formaPagamento] ?? order.formaPagamento : "-",

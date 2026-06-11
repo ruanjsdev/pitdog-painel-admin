@@ -26,6 +26,8 @@ export type Order = {
   deliveryFee?: number
   courierId?: string
   courierName?: string
+  deliveryPersonId?: string
+  deliveryPersonName?: string
   discount?: number
   discountPercent?: number
   discountReason?: string
@@ -41,6 +43,17 @@ export type Order = {
   delivery: DeliveryType
   status: OrderStatus
   items: string[]
+  addonNames?: string[]
+  addons?: Array<{
+    active?: boolean
+    id: string
+    name: string
+    price?: number
+  }>
+  flavorId?: string
+  flavorIds?: string[]
+  flavorName?: string
+  flavorNames?: string[]
   cancelReason?: string
   notes?: string
   backendStatus?: string

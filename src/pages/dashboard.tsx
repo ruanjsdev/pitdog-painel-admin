@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import {
   AlertTriangle,
+  Bike,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -22,6 +23,7 @@ import {
   Search,
   Settings,
   Store,
+  Tag,
   Truck,
   Upload,
   User,
@@ -62,6 +64,10 @@ import {
   type WhatsAppBotSettings,
   type WhatsAppBotStatus,
 } from "../services/whatsapp-bot-api"
+import { deliveryApi } from "../services/delivery-api"
+import { flavorApi } from "../services/flavor-api"
+import { addonsApi } from "../services/addons-api"
+import type { DeliveryPerson, DeliveryPersonDraft } from "../types/delivery"
 import type {
   MenuAdditional,
   MenuAdditionalDraft,
@@ -69,6 +75,8 @@ import type {
   MenuCategoryDraft,
   MenuProduct,
   MenuProductDraft,
+  ProductFlavor,
+  ProductFlavorDraft,
 } from "../types/menu"
 import type { DeliveryType, Order } from "../types/order"
 
@@ -80,12 +88,7 @@ type OrderFilter = "todos" | "mesa" | "retirada" | "entrega"
 type StatusFilter = "todos" | Order["status"]
 type MenuPanelSection = "categorias" | "produtos" | "adicionais"
 type CashTab = "todos" | "hamburgueres" | "cachorros" | "refrigerantes" | "adicionais" | "outros"
-type MainPanel = "pedidos" | "cardápio" | "caixa" | "clientes" | "zap"
-type Courier = {
-  active: boolean
-  id: string
-  name: string
-}
+type MainPanel = "dashboard" | "pedidos" | "produtos" | "categorias" | "adicionais" | "sabores" | "motoboys" | "configuracoes" | "cardápio" | "caixa" | "clientes" | "zap"
 type OrderDraft = Pick<Order, "customer" | "delivery" | "items" | "notes" | "payment" | "phone" | "total"> & {
   address: string
   changeFor: number
@@ -120,6 +123,12 @@ type LocalPanelSettings = {
   defaultDeliveryFee: number
   printCopies: number
 }
+type PrinterConfig = {
+  autoPrintOnAccept: boolean
+  enabled: boolean
+  host: string
+  port: number
+}
 
 const statusLabels: Record<string, string> = {
   novo: "Aguardando aprovação",
@@ -145,6 +154,7 @@ const deliveryOptions: DeliveryType[] = ["Delivery", "Mesa", "Retirada"]
 const paymentOptions = ["Pix", "Dinheiro", "Cartão de crédito", "Cartão de débito"]
 const defaultDeliveryFee = 5
 const couriersStorageKey = "pitsdog:admin:couriers:v1"
+const flavorsStorageKey = "pitsdog:admin:flavors:v1"
 const soundModeStorageKey = "pitsdog:admin:sound-mode:v1"
 const pixSettingsStorageKey = "pitsdog:admin:pix-settings:v1"
 const localPanelSettingsStorageKey = "pitsdog:admin:local-panel-settings:v1"
@@ -158,11 +168,16 @@ const emptyCategoryDraft: MenuCategoryDraft = {
 }
 
 const emptyProductDraft: MenuProductDraft = {
+  addonIds: [],
   ativo: true,
   categoriaId: 0,
   descricao: "",
+  flavorIds: [],
+  flavorRequired: true,
+  hasFlavors: false,
   highlight: "",
   imagem: "",
+  maxFlavors: 1,
   nome: "",
   permiteAdicionais: false,
   preco: 0,
@@ -173,6 +188,28 @@ const emptyAdditionalDraft: MenuAdditionalDraft = {
   descricao: "",
   nome: "",
   preco: 0,
+}
+
+const emptyFlavorDraft: ProductFlavorDraft = {
+  active: true,
+  categoryId: "",
+  name: "",
+  notes: "",
+  productId: "",
+}
+
+const emptyDeliveryPersonDraft: DeliveryPersonDraft = {
+  active: true,
+  name: "",
+  notes: "",
+  phone: "",
+}
+
+const defaultPrinterConfig: PrinterConfig = {
+  autoPrintOnAccept: false,
+  enabled: true,
+  host: "192.168.3.17",
+  port: 9100,
 }
 
 const deliveryHighlightStyles: Record<DeliveryType, string> = {
@@ -189,7 +226,15 @@ const deliveryIcons: Record<string, typeof Truck> = {
 
 function readCouriers() {
   try {
-    return JSON.parse(window.localStorage.getItem(couriersStorageKey) ?? "[]") as Courier[]
+    return JSON.parse(window.localStorage.getItem(couriersStorageKey) ?? "[]") as DeliveryPerson[]
+  } catch {
+    return []
+  }
+}
+
+function readFlavors() {
+  try {
+    return JSON.parse(window.localStorage.getItem(flavorsStorageKey) ?? "[]") as ProductFlavor[]
   } catch {
     return []
   }
@@ -577,6 +622,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [cashPanelOpen, setCashPanelOpen] = useState(false)
   const [clientsPanelOpen, setClientsPanelOpen] = useState(false)
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
+  const [deliveryPeoplePanelOpen, setDeliveryPeoplePanelOpen] = useState(false)
+  const [flavorsPanelOpen, setFlavorsPanelOpen] = useState(false)
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false)
+  const [ordersView, setOrdersView] = useState<"dashboard" | "pedidos">("dashboard")
+  const [flavorSearch, setFlavorSearch] = useState("")
+  const [deliveryPersonSearch, setDeliveryPersonSearch] = useState("")
   const [cashTab, setCashTab] = useState<CashTab>("todos")
   const [reportStartDate, setReportStartDate] = useState(getLocalDateInputValue())
   const [reportEndDate, setReportEndDate] = useState(getLocalDateInputValue())
@@ -592,9 +643,25 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [pixSettingsFeedback, setPixSettingsFeedback] = useState("")
   const [updatingOrderIds, setUpdatingOrderIds] = useState<Set<number>>(() => new Set())
   const updatingOrderIdsRef = useRef(new Set<number>())
-  const [couriers, setCouriers] = useState<Courier[]>(readCouriers)
-  const [courierDraft, setCourierDraft] = useState({ name: "" })
+  const [couriers, setCouriers] = useState<DeliveryPerson[]>(readCouriers)
+  const [courierDraft, setCourierDraft] = useState<DeliveryPersonDraft>(emptyDeliveryPersonDraft)
   const [editingCourierId, setEditingCourierId] = useState<string | null>(null)
+  const [courierFeedback, setCourierFeedback] = useState("")
+  const [courierSaving, setCourierSaving] = useState(false)
+  const [flavors, setFlavors] = useState<ProductFlavor[]>(readFlavors)
+  const [flavorDraft, setFlavorDraft] = useState<ProductFlavorDraft>(emptyFlavorDraft)
+  const [editingFlavorId, setEditingFlavorId] = useState<string | null>(null)
+  const [flavorFeedback, setFlavorFeedback] = useState("")
+  const [flavorSaving, setFlavorSaving] = useState(false)
+  const [addonModalProduct, setAddonModalProduct] = useState<MenuProduct | null>(null)
+  const [addonModalSearch, setAddonModalSearch] = useState("")
+  const [addonModalSelectedIds, setAddonModalSelectedIds] = useState<string[]>([])
+  const [addonModalInitialIds, setAddonModalInitialIds] = useState<string[]>([])
+  const [addonModalFeedback, setAddonModalFeedback] = useState("")
+  const [addonModalSaving, setAddonModalSaving] = useState(false)
+  const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(defaultPrinterConfig)
+  const [printerFeedback, setPrinterFeedback] = useState("")
+  const [printerLoading, setPrinterLoading] = useState(false)
   const [clientNotes, setClientNotes] = useState<Record<string, string>>(() => {
     try {
       return JSON.parse(window.localStorage.getItem("pitsdog:admin:client-notes:v1") ?? "{}") as Record<string, string>
@@ -789,12 +856,64 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }, [couriers])
 
   useEffect(() => {
+    window.localStorage.setItem(flavorsStorageKey, JSON.stringify(flavors))
+  }, [flavors])
+
+  useEffect(() => {
+    deliveryApi.listDeliveryPeople()
+      .then((deliveryPeople) => {
+        if (deliveryPeople && deliveryPeople.length > 0) {
+          setCouriers(deliveryPeople)
+          setCourierFeedback("")
+        }
+      })
+      .catch((error) => {
+        setCourierFeedback(error instanceof Error ? error.message : "Recurso ainda não disponível na API.")
+      })
+
+    flavorApi.listFlavors()
+      .then((loadedFlavors) => {
+        if (loadedFlavors && loadedFlavors.length > 0) {
+          setFlavors(loadedFlavors)
+          setFlavorFeedback("")
+        }
+      })
+      .catch((error) => {
+        setFlavorFeedback(error instanceof Error ? error.message : "Recurso ainda não disponível na API.")
+      })
+  }, [])
+
+  useEffect(() => {
     window.localStorage.setItem(soundModeStorageKey, soundModeId)
   }, [soundModeId])
 
   useEffect(() => {
     window.localStorage.setItem(localPanelSettingsStorageKey, JSON.stringify(localPanelSettings))
   }, [localPanelSettings])
+
+  useEffect(() => {
+    if (!window.pitsDog?.printer?.getConfig) {
+      setPrinterFeedback("Impressão direta disponível apenas no app desktop.")
+      return
+    }
+
+    setPrinterLoading(true)
+    window.pitsDog.printer.getConfig()
+      .then((result) => {
+        if (!result.ok || !result.data) {
+          setPrinterFeedback(result.error || "Não foi possível carregar a impressora.")
+          return
+        }
+
+        setPrinterConfig(result.data)
+        setLocalPanelSettings((settings) => ({
+          ...settings,
+          autoPrint: result.data?.autoPrintOnAccept ?? settings.autoPrint,
+        }))
+        setPrinterFeedback("")
+      })
+      .finally(() => setPrinterLoading(false))
+  }, [])
 
   useEffect(() => {
     void refreshPixSettings()
@@ -1028,6 +1147,19 @@ export function Dashboard({ onLogout }: DashboardProps) {
     ? cashItems
     : cashItems.filter((item) => item.category === cashTab)
   const activeCouriers = couriers.filter((courier) => courier.active)
+  const visibleDeliveryPeople = couriers.filter((courier) => {
+    const normalizedSearch = normalizeText(deliveryPersonSearch.trim())
+
+    return !normalizedSearch ||
+      normalizeText(`${courier.name} ${courier.phone ?? ""}`).includes(normalizedSearch)
+  })
+  const activeFlavors = flavors.filter((flavor) => flavor.active)
+  const visibleFlavors = flavors.filter((flavor) => {
+    const normalizedSearch = normalizeText(flavorSearch.trim())
+
+    return !normalizedSearch ||
+      normalizeText(`${flavor.name} ${flavor.notes ?? ""}`).includes(normalizedSearch)
+  })
   const reportDeliveryOrders = reportOrders.filter((order) => order.delivery === "Delivery" && order.status !== "cancelado")
   const courierStats = couriers.map((courier) => ({
     ...courier,
@@ -1117,7 +1249,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     window.localStorage.setItem("pitsdog:admin:client-notes:v1", JSON.stringify(nextNotes))
   }
 
-  function addCourier() {
+  async function addCourier() {
     const name = courierDraft.name.trim()
 
     if (!name) {
@@ -1125,32 +1257,109 @@ export function Dashboard({ onLogout }: DashboardProps) {
       return
     }
 
+    setCourierSaving(true)
+    setCourierFeedback("")
+
     if (editingCourierId) {
+      const previousCouriers = couriers
+      const nextDraft = { ...courierDraft, name }
+
       setCouriers((currentCouriers) => currentCouriers.map((courier) => (
-        courier.id === editingCourierId ? { ...courier, name } : courier
+        courier.id === editingCourierId ? { ...courier, ...nextDraft } : courier
       )))
-      setCourierDraft({ name: "" })
-      setEditingCourierId(null)
-      showNotice(`${name} atualizado no cadastro de motoboys.`)
+
+      try {
+        await deliveryApi.updateDeliveryPerson(editingCourierId, nextDraft)
+        setCourierFeedback(`${name} atualizado na API.`)
+      } catch (error) {
+        setCourierFeedback(error instanceof Error ? `${error.message} Alteração mantida localmente.` : "Alteração mantida localmente.")
+        setCouriers(previousCouriers.map((courier) => (
+          courier.id === editingCourierId ? { ...courier, ...nextDraft } : courier
+        )))
+      } finally {
+        setCourierDraft(emptyDeliveryPersonDraft)
+        setEditingCourierId(null)
+        setCourierSaving(false)
+      }
+
+      showNotice(`${name} atualizado no cadastro de entregadores.`)
       return
     }
 
-    setCouriers((currentCouriers) => [
-      ...currentCouriers,
-      {
-        active: true,
-        id: `motoboy-${Date.now()}`,
-        name,
-      },
-    ])
-    setCourierDraft({ name: "" })
-    showNotice(`${name} cadastrado como motoboy.`)
+    const localCourier = {
+      ...courierDraft,
+      id: `motoboy-${Date.now()}`,
+      name,
+    }
+
+    setCouriers((currentCouriers) => [...currentCouriers, localCourier])
+
+    try {
+      const createdCourier = await deliveryApi.createDeliveryPerson({ ...courierDraft, name })
+
+      if (createdCourier) {
+        setCouriers((currentCouriers) => currentCouriers.map((courier) => (
+          courier.id === localCourier.id ? createdCourier : courier
+        )))
+      }
+      setCourierFeedback(`${name} cadastrado na API.`)
+    } catch (error) {
+      setCourierFeedback(error instanceof Error ? `${error.message} Cadastro mantido localmente.` : "Cadastro mantido localmente.")
+    } finally {
+      setCourierDraft(emptyDeliveryPersonDraft)
+      setCourierSaving(false)
+    }
+
+    showNotice(`${name} cadastrado como entregador.`)
   }
 
-  function editCourier(courier: Courier) {
-    setCourierDraft({ name: courier.name })
+  function editCourier(courier: DeliveryPerson) {
+    setCourierDraft({
+      active: courier.active,
+      name: courier.name,
+      notes: courier.notes ?? "",
+      phone: courier.phone ?? "",
+    })
     setEditingCourierId(courier.id)
-    showNotice(`Editando motoboy ${courier.name}.`)
+    showNotice(`Editando entregador ${courier.name}.`)
+  }
+
+  async function toggleCourierStatus(courier: DeliveryPerson) {
+    const nextCourier = { ...courier, active: !courier.active }
+
+    setCouriers((currentCouriers) => currentCouriers.map((currentCourier) => (
+      currentCourier.id === courier.id ? nextCourier : currentCourier
+    )))
+
+    try {
+      await deliveryApi.updateDeliveryPerson(courier.id, {
+        active: nextCourier.active,
+        name: nextCourier.name,
+        notes: nextCourier.notes,
+        phone: nextCourier.phone,
+      })
+      setCourierFeedback(nextCourier.active ? "Entregador ativado na API." : "Entregador inativado na API.")
+    } catch (error) {
+      setCourierFeedback(error instanceof Error ? `${error.message} Status mantido localmente.` : "Status mantido localmente.")
+    }
+  }
+
+  async function deleteCourier(courier: DeliveryPerson) {
+    if (!window.confirm(`Excluir ${courier.name}?`)) return
+
+    const previousCouriers = couriers
+
+    setCouriers((currentCouriers) => currentCouriers.filter((currentCourier) => currentCourier.id !== courier.id))
+
+    try {
+      await deliveryApi.deleteDeliveryPerson(courier.id)
+      setCourierFeedback(`${courier.name} excluído na API.`)
+    } catch (error) {
+      setCourierFeedback(error instanceof Error ? `${error.message} Remoção feita apenas neste painel.` : "Remoção feita apenas neste painel.")
+      if (error instanceof Error && !error.message.includes("Recurso ainda não disponível")) {
+        setCouriers(previousCouriers)
+      }
+    }
   }
 
   async function assignCourierToOrder(order: Order, courierId: string) {
@@ -1179,6 +1388,194 @@ export function Dashboard({ onLogout }: DashboardProps) {
     } catch (error) {
       applyOrderChanges(orderId, previousOrder)
       showNotice(error instanceof Error ? error.message : "Não foi possível salvar o motoboy na API agora.")
+    }
+  }
+
+  async function saveFlavor() {
+    const name = flavorDraft.name.trim()
+
+    if (!name) {
+      showNotice("Informe o nome do sabor.")
+      return
+    }
+
+    setFlavorSaving(true)
+    setFlavorFeedback("")
+
+    if (editingFlavorId) {
+      const nextDraft = { ...flavorDraft, name }
+
+      setFlavors((currentFlavors) => currentFlavors.map((flavor) => (
+        flavor.id === editingFlavorId ? { ...flavor, ...nextDraft } : flavor
+      )))
+
+      try {
+        await flavorApi.updateFlavor(editingFlavorId, nextDraft)
+        setFlavorFeedback(`${name} atualizado na API.`)
+      } catch (error) {
+        setFlavorFeedback(error instanceof Error ? `${error.message} Alteração mantida localmente.` : "Alteração mantida localmente.")
+      } finally {
+        setFlavorDraft(emptyFlavorDraft)
+        setEditingFlavorId(null)
+        setFlavorSaving(false)
+      }
+
+      showNotice(`${name} atualizado em sabores.`)
+      return
+    }
+
+    const localFlavor = {
+      ...flavorDraft,
+      id: `flavor-${Date.now()}`,
+      name,
+    }
+
+    setFlavors((currentFlavors) => [...currentFlavors, localFlavor])
+
+    try {
+      const createdFlavor = await flavorApi.createFlavor({ ...flavorDraft, name })
+
+      if (createdFlavor) {
+        setFlavors((currentFlavors) => currentFlavors.map((flavor) => (
+          flavor.id === localFlavor.id ? createdFlavor : flavor
+        )))
+      }
+      setFlavorFeedback(`${name} cadastrado na API.`)
+    } catch (error) {
+      setFlavorFeedback(error instanceof Error ? `${error.message} Cadastro mantido localmente.` : "Cadastro mantido localmente.")
+    } finally {
+      setFlavorDraft(emptyFlavorDraft)
+      setFlavorSaving(false)
+    }
+
+    showNotice(`${name} cadastrado como sabor.`)
+  }
+
+  function editFlavor(flavor: ProductFlavor) {
+    setFlavorDraft({
+      active: flavor.active,
+      categoryId: flavor.categoryId ?? "",
+      name: flavor.name,
+      notes: flavor.notes ?? "",
+      productId: flavor.productId ?? "",
+    })
+    setEditingFlavorId(flavor.id)
+    showNotice(`Editando sabor ${flavor.name}.`)
+  }
+
+  async function toggleFlavorStatus(flavor: ProductFlavor) {
+    const nextFlavor = { ...flavor, active: !flavor.active }
+
+    setFlavors((currentFlavors) => currentFlavors.map((currentFlavor) => (
+      currentFlavor.id === flavor.id ? nextFlavor : currentFlavor
+    )))
+
+    try {
+      await flavorApi.updateFlavor(flavor.id, {
+        active: nextFlavor.active,
+        categoryId: nextFlavor.categoryId,
+        name: nextFlavor.name,
+        notes: nextFlavor.notes,
+        productId: nextFlavor.productId,
+      })
+      setFlavorFeedback(nextFlavor.active ? "Sabor ativado na API." : "Sabor inativado na API.")
+    } catch (error) {
+      setFlavorFeedback(error instanceof Error ? `${error.message} Status mantido localmente.` : "Status mantido localmente.")
+    }
+  }
+
+  async function deleteFlavor(flavor: ProductFlavor) {
+    if (!window.confirm(`Excluir sabor ${flavor.name}?`)) return
+
+    const previousFlavors = flavors
+
+    setFlavors((currentFlavors) => currentFlavors.filter((currentFlavor) => currentFlavor.id !== flavor.id))
+
+    try {
+      await flavorApi.deleteFlavor(flavor.id)
+      setFlavorFeedback(`${flavor.name} excluído na API.`)
+    } catch (error) {
+      setFlavorFeedback(error instanceof Error ? `${error.message} Remoção feita apenas neste painel.` : "Remoção feita apenas neste painel.")
+      if (error instanceof Error && !error.message.includes("Recurso ainda não disponível")) {
+        setFlavors(previousFlavors)
+      }
+    }
+  }
+
+  async function savePrinterSettings() {
+    if (!window.pitsDog?.printer?.saveConfig) {
+      setPrinterFeedback("Essa função só está disponível no app desktop.")
+      return
+    }
+
+    setPrinterLoading(true)
+    setPrinterFeedback("")
+
+    const nextConfig = {
+      ...printerConfig,
+      autoPrintOnAccept: localPanelSettings.autoPrint,
+    }
+
+    try {
+      const result = await window.pitsDog.printer.saveConfig(nextConfig)
+
+      if (!result.ok || !result.data) {
+        setPrinterFeedback(result.error || "Não foi possível salvar as configurações.")
+        return
+      }
+
+      setPrinterConfig(result.data)
+      setLocalPanelSettings((settings) => ({
+        ...settings,
+        autoPrint: result.data?.autoPrintOnAccept ?? settings.autoPrint,
+      }))
+      setPrinterFeedback(result.message || "Configurações salvas com sucesso.")
+    } finally {
+      setPrinterLoading(false)
+    }
+  }
+
+  async function checkPrinterConnection() {
+    if (!window.pitsDog?.printer?.checkConnection) {
+      setPrinterFeedback("Essa função só está disponível no app desktop.")
+      return
+    }
+
+    setPrinterLoading(true)
+    setPrinterFeedback("")
+
+    try {
+      await window.pitsDog.printer.saveConfig({
+        ...printerConfig,
+        autoPrintOnAccept: localPanelSettings.autoPrint,
+      })
+      const result = await window.pitsDog.printer.checkConnection()
+
+      setPrinterFeedback(result.ok ? result.message || "Conexão com a impressora confirmada." : result.error || "Não foi possível conectar na impressora.")
+    } finally {
+      setPrinterLoading(false)
+    }
+  }
+
+  async function testPrinter() {
+    if (!window.pitsDog?.printer?.testPrint) {
+      setPrinterFeedback("Essa função só está disponível no app desktop.")
+      return
+    }
+
+    setPrinterLoading(true)
+    setPrinterFeedback("")
+
+    try {
+      await window.pitsDog.printer.saveConfig({
+        ...printerConfig,
+        autoPrintOnAccept: localPanelSettings.autoPrint,
+      })
+      const result = await window.pitsDog.printer.testPrint()
+
+      setPrinterFeedback(result.ok ? result.message || "Impressão de teste enviada." : result.error || "Não foi possível conectar na impressora.")
+    } finally {
+      setPrinterLoading(false)
     }
   }
 
@@ -1568,10 +1965,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setEditingProductId(product.id)
     setProductDraft({
       ativo: product.ativo,
+      addonIds: product.addonIds ?? [],
       categoriaId: product.categoriaId,
       descricao: product.descricao,
+      flavorIds: product.flavorIds ?? [],
+      flavorRequired: product.flavorRequired ?? false,
+      hasFlavors: product.hasFlavors ?? false,
       highlight: product.highlight ?? product.subtitle ?? "",
       imagem: product.imageUrl ?? product.imagem ?? "",
+      maxFlavors: product.maxFlavors ?? 1,
       nome: product.nome,
       permiteAdicionais: product.permiteAdicionais ?? false,
       preco: product.preco,
@@ -1598,10 +2000,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
       } catch {
         await menuAdmin.updateProduct(product.id, {
           ativo: nextStatus,
+          addonIds: product.addonIds ?? [],
           categoriaId: product.categoriaId,
           descricao: product.descricao,
+          flavorIds: product.flavorIds ?? [],
+          flavorRequired: product.flavorRequired ?? false,
+          hasFlavors: product.hasFlavors ?? false,
           highlight: product.highlight ?? product.subtitle ?? "",
           imagem: product.imageUrl ?? product.imagem ?? "",
+          maxFlavors: product.maxFlavors ?? 1,
           nome: product.nome,
           permiteAdicionais: product.permiteAdicionais ?? false,
           preco: product.preco,
@@ -1687,6 +2094,72 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
+  function openProductAddons(product: MenuProduct) {
+    const addonIds = product.addonIds ?? []
+
+    setAddonModalProduct(product)
+    setAddonModalSelectedIds(addonIds)
+    setAddonModalInitialIds(addonIds)
+    setAddonModalFeedback("")
+    setAddonModalSearch("")
+  }
+
+  function closeProductAddons() {
+    const hasPendingChanges = addonModalSelectedIds.slice().sort().join("|") !== addonModalInitialIds.slice().sort().join("|")
+
+    if (hasPendingChanges && !window.confirm("Existem alterações não salvas. Deseja sair?")) return
+
+    setAddonModalProduct(null)
+    setAddonModalSelectedIds([])
+    setAddonModalInitialIds([])
+    setAddonModalFeedback("")
+    setAddonModalSearch("")
+  }
+
+  async function saveProductAddons() {
+    if (!addonModalProduct) return
+
+    setAddonModalSaving(true)
+    setAddonModalFeedback("")
+
+    const productId = addonModalProduct.id
+    const nextAddonIds = addonModalSelectedIds
+
+    try {
+      let relationWarning = ""
+
+      try {
+        await addonsApi.updateProductAddons(String(productId), nextAddonIds)
+      } catch (error) {
+        relationWarning = error instanceof Error ? error.message : "A API ainda não possui suporte para vínculo de adicionais por produto."
+      }
+
+      await menuAdmin.updateProduct(productId, {
+        addonIds: nextAddonIds,
+        ativo: addonModalProduct.ativo,
+        categoriaId: addonModalProduct.categoriaId,
+        descricao: addonModalProduct.descricao,
+        flavorIds: addonModalProduct.flavorIds ?? [],
+        flavorRequired: addonModalProduct.flavorRequired ?? false,
+        hasFlavors: addonModalProduct.hasFlavors ?? false,
+        highlight: addonModalProduct.highlight ?? addonModalProduct.subtitle ?? "",
+        imagem: addonModalProduct.imageUrl ?? addonModalProduct.imagem ?? "",
+        maxFlavors: addonModalProduct.maxFlavors ?? 1,
+        nome: addonModalProduct.nome,
+        permiteAdicionais: nextAddonIds.length > 0 || Boolean(addonModalProduct.permiteAdicionais),
+        preco: addonModalProduct.preco,
+      })
+      setAddonModalFeedback(relationWarning ? `${relationWarning} Vínculo enviado junto ao produto.` : "Adicionais vinculados ao produto.")
+      setAddonModalInitialIds(nextAddonIds)
+      showStatusToast("Adicionais do produto salvos.")
+    } catch (error) {
+      setAddonModalFeedback(error instanceof Error ? `${error.message} Vínculo mantido localmente.` : "Vínculo mantido localmente.")
+      menuAdmin.applyProductStatus(productId, addonModalProduct.ativo)
+    } finally {
+      setAddonModalSaving(false)
+    }
+  }
+
   const filters: Array<{ label: string; value: OrderFilter; count: number }> = [
     { label: "Todos os pedidos", value: "todos", count: counts.all },
     { label: "Mesa", value: "mesa", count: counts.mesa },
@@ -1717,36 +2190,73 @@ export function Dashboard({ onLogout }: DashboardProps) {
     online: "Cardápio conectado",
   }[menuAdmin.status]
   const backendReady = connectionStatus === "online"
-  const activePanel = zapPanelOpen ? "zap" : menuPanelOpen ? "cardápio" : cashPanelOpen ? "caixa" : clientsPanelOpen ? "clientes" : "pedidos"
-  const showingOrdersPanel = activePanel === "pedidos"
+  const activePanel = settingsPanelOpen
+    ? "configuracoes"
+    : deliveryPeoplePanelOpen
+      ? "motoboys"
+      : flavorsPanelOpen
+        ? "sabores"
+        : menuPanelOpen
+          ? menuPanelSection
+          : zapPanelOpen
+            ? "zap"
+            : cashPanelOpen
+              ? "caixa"
+              : clientsPanelOpen
+                ? "clientes"
+                : ordersView
+  const showingOrdersPanel = activePanel === "pedidos" || activePanel === "dashboard"
   const navigationItems = [
-    { description: `${visibleOrders.length} na tela`, icon: LayoutDashboard, label: "Pedidos", value: "pedidos" },
-    { description: `${visibleProducts.length} produtos`, icon: Settings, label: "Cardápio", value: "cardápio" },
-    { description: formatCurrency(completedRevenue), icon: DollarSign, label: "Caixa", value: "caixa" },
-    { description: `${clientProfiles.length} contatos`, icon: Users, label: "Clientes", value: "clientes" },
-    { description: whatsAppBotStatus?.connected ? "conectado" : "QR e mensagens", icon: MessageCircle, label: "Zap", value: "zap" },
+    { description: `${counts.novo} novos`, icon: LayoutDashboard, label: "Dashboard", value: "dashboard" },
+    { description: `${visibleOrders.length} na tela`, icon: PackageCheck, label: "Pedidos", value: "pedidos" },
+    { description: `${visibleProducts.length} produtos`, icon: Store, label: "Produtos", value: "produtos" },
+    { description: `${menuAdmin.categories.length} categorias`, icon: Settings, label: "Categorias", value: "categorias" },
+    { description: `${menuAdmin.additionals.length} adicionais`, icon: Plus, label: "Adicionais", value: "adicionais" },
+    { description: `${flavors.length} sabores`, icon: Tag, label: "Sabores", value: "sabores" },
+    { description: `${couriers.length} cadastrados`, icon: Bike, label: "Motoboys", value: "motoboys" },
+    { description: "Sistema e impressão", icon: Settings, label: "Configurações", value: "configuracoes" },
   ] as const
 
   function showPanel(panel: MainPanel) {
-    setMenuPanelOpen(panel === "cardápio")
+    const menuSections: Partial<Record<MainPanel, MenuPanelSection>> = {
+      "cardápio": "produtos",
+      adicionais: "adicionais",
+      categorias: "categorias",
+      produtos: "produtos",
+    }
+    const nextMenuSection = menuSections[panel]
+
+    if (nextMenuSection) setMenuPanelSection(nextMenuSection)
+    if (panel === "dashboard" || panel === "pedidos") setOrdersView(panel)
+
+    setMenuPanelOpen(Boolean(nextMenuSection))
     setCashPanelOpen(panel === "caixa")
     setClientsPanelOpen(panel === "clientes")
     setZapPanelOpen(panel === "zap")
+    setDeliveryPeoplePanelOpen(panel === "motoboys")
+    setFlavorsPanelOpen(panel === "sabores")
+    setSettingsPanelOpen(panel === "configuracoes")
     showNotice(
-      panel === "pedidos"
+      panel === "pedidos" || panel === "dashboard"
         ? "Tela principal de pedidos aberta."
-        : panel === "cardápio"
-          ? "Gerenciamento do cardápio aberto."
-          : panel === "caixa"
-            ? "Fluxo de caixa aberto."
-            : panel === "clientes"
-              ? "Histórico de clientes aberto."
-              : "Central do Zap aberta."
+        : nextMenuSection
+          ? `Gerenciamento de ${nextMenuSection} aberto.`
+          : panel === "sabores"
+            ? "Gerenciamento de sabores aberto."
+            : panel === "motoboys"
+              ? "Gerenciamento de entregadores aberto."
+              : panel === "configuracoes"
+                ? "Configurações técnicas abertas."
+                : panel === "caixa"
+                  ? "Fluxo de caixa aberto."
+                  : panel === "clientes"
+                    ? "Histórico de clientes aberto."
+                    : "Central do Zap aberta."
     )
   }
 
   useEffect(() => {
-    const hasSecondaryScreen = isEditing || isCanceling || Boolean(errorDialog) || activePanel !== "pedidos"
+    const hasSecondaryScreen = isEditing || isCanceling || Boolean(errorDialog) || (activePanel !== "pedidos" && activePanel !== "dashboard")
 
     if (!hasSecondaryScreen) return
 
@@ -1763,11 +2273,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
         setNotice(selectedOrder ? `Edição do pedido #${selectedOrder.id} fechada.` : "Edição fechada.")
       } else if (isCanceling) {
         setIsCanceling(false)
-      } else if (activePanel !== "pedidos") {
+      } else if (activePanel !== "pedidos" && activePanel !== "dashboard") {
         setMenuPanelOpen(false)
         setCashPanelOpen(false)
         setClientsPanelOpen(false)
         setZapPanelOpen(false)
+        setDeliveryPeoplePanelOpen(false)
+        setFlavorsPanelOpen(false)
+        setSettingsPanelOpen(false)
         setNotice("Tela principal de pedidos aberta.")
       }
 
@@ -1912,6 +2425,462 @@ export function Dashboard({ onLogout }: DashboardProps) {
             }}
             syncClock={syncClock}
           />
+        )}
+
+        {deliveryPeoplePanelOpen && (
+          <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.92)] p-4">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Entregas</p>
+                <h2 className="text-xl font-black text-white">Motoboys / Entregadores</h2>
+              </div>
+              <button type="button" onClick={() => showPanel("pedidos")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                <LayoutDashboard size={15} />
+                Voltar aos pedidos
+              </button>
+            </div>
+
+            {courierFeedback && (
+              <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.08] p-3 text-sm font-bold leading-6 text-cyan-50/80">
+                {courierFeedback}
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+              <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                <div className="flex items-center gap-2 text-sm font-black text-white">
+                  <Plus size={16} className="text-orange-300" />
+                  {editingCourierId ? "Editar entregador" : "Novo entregador"}
+                </div>
+                <div className="mt-3 space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Nome</span>
+                    <input value={courierDraft.name} onChange={(event) => setCourierDraft({ ...courierDraft, name: event.target.value })} placeholder="Nome do motoboy" className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Telefone / WhatsApp</span>
+                    <input value={courierDraft.phone ?? ""} onChange={(event) => setCourierDraft({ ...courierDraft, phone: event.target.value })} placeholder="(91) 99999-9999" className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Observação</span>
+                    <textarea value={courierDraft.notes ?? ""} onChange={(event) => setCourierDraft({ ...courierDraft, notes: event.target.value })} placeholder="Turno, região, documento..." className="min-h-20 w-full resize-none rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
+                  </label>
+                  <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                    Entregador ativo
+                    <input type="checkbox" checked={courierDraft.active} onChange={(event) => setCourierDraft({ ...courierDraft, active: event.target.checked })} className="h-4 w-4 accent-orange-400" />
+                  </label>
+                  <button type="button" onClick={() => void addCourier()} disabled={courierSaving || !courierDraft.name.trim()} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50">
+                    {courierSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                    {courierSaving ? "Salvando..." : editingCourierId ? "Salvar entregador" : "Cadastrar entregador"}
+                  </button>
+                  {editingCourierId && (
+                    <button type="button" onClick={() => { setCourierDraft(emptyDeliveryPersonDraft); setEditingCourierId(null) }} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                      <X size={15} />
+                      Cancelar edição
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-white">Entregadores cadastrados</p>
+                    <p className="mt-1 text-xs text-zinc-500">Pesquise, edite, ative/inative e atribua nos pedidos de entrega.</p>
+                  </div>
+                  <label className="flex h-10 min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-zinc-400 lg:w-72">
+                    <Search size={15} />
+                    <input value={deliveryPersonSearch} onChange={(event) => setDeliveryPersonSearch(event.target.value)} className="w-full bg-transparent text-white outline-none placeholder:text-zinc-500" placeholder="Buscar nome ou telefone" />
+                  </label>
+                </div>
+
+                <div className="mt-3 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+                  {visibleDeliveryPeople.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
+                      Nenhum entregador encontrado.
+                    </div>
+                  )}
+                  {visibleDeliveryPeople.map((courier) => (
+                    <div key={courier.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="text-sm font-black text-white">{courier.name}</strong>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${courier.active ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"}`}>
+                            {courier.active ? "Ativo" : "Inativo"}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-zinc-500">{courier.phone || "Sem telefone"} {courier.notes ? `| ${courier.notes}` : ""}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => editCourier(courier)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                          <Edit3 size={14} />
+                          Editar
+                        </button>
+                        <button type="button" onClick={() => void toggleCourierStatus(courier)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition ${courier.active ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"}`}>
+                          {courier.active ? "Inativar" : "Ativar"}
+                        </button>
+                        <button type="button" onClick={() => void deleteCourier(courier)} className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.18]">
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {flavorsPanelOpen && (
+          <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.92)] p-4">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Variações de produto</p>
+                <h2 className="text-xl font-black text-white">Sabores</h2>
+              </div>
+              <button type="button" onClick={() => showPanel("pedidos")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                <LayoutDashboard size={15} />
+                Voltar aos pedidos
+              </button>
+            </div>
+
+            {flavorFeedback && (
+              <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.08] p-3 text-sm font-bold leading-6 text-cyan-50/80">
+                {flavorFeedback}
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+              <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                <div className="flex items-center gap-2 text-sm font-black text-white">
+                  <Plus size={16} className="text-orange-300" />
+                  {editingFlavorId ? "Editar sabor" : "Novo sabor"}
+                </div>
+                <div className="mt-3 space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Nome do sabor</span>
+                    <input value={flavorDraft.name} onChange={(event) => setFlavorDraft({ ...flavorDraft, name: event.target.value })} placeholder="Ex: Maracujá, Coca-Cola, Uva" className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                  </label>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Categoria opcional</span>
+                      <select value={flavorDraft.categoryId ?? ""} onChange={(event) => setFlavorDraft({ ...flavorDraft, categoryId: event.target.value })} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none">
+                        <option value="">Sem categoria</option>
+                        {menuAdmin.categories.map((category) => (
+                          <option key={category.id} value={category.id}>{category.nome}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Produto opcional</span>
+                      <select value={flavorDraft.productId ?? ""} onChange={(event) => setFlavorDraft({ ...flavorDraft, productId: event.target.value })} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none">
+                        <option value="">Sem produto específico</option>
+                        {menuAdmin.products.map((product) => (
+                          <option key={product.id} value={product.id}>{product.nome}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Observação</span>
+                    <textarea value={flavorDraft.notes ?? ""} onChange={(event) => setFlavorDraft({ ...flavorDraft, notes: event.target.value })} placeholder="Ex: disponível só para sucos naturais" className="min-h-20 w-full resize-none rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
+                  </label>
+                  <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                    Sabor ativo
+                    <input type="checkbox" checked={flavorDraft.active} onChange={(event) => setFlavorDraft({ ...flavorDraft, active: event.target.checked })} className="h-4 w-4 accent-orange-400" />
+                  </label>
+                  <button type="button" onClick={() => void saveFlavor()} disabled={flavorSaving || !flavorDraft.name.trim()} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50">
+                    {flavorSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                    {flavorSaving ? "Salvando..." : editingFlavorId ? "Salvar sabor" : "Cadastrar sabor"}
+                  </button>
+                  {editingFlavorId && (
+                    <button type="button" onClick={() => { setFlavorDraft(emptyFlavorDraft); setEditingFlavorId(null) }} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                      <X size={15} />
+                      Cancelar edição
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-white">Sabores cadastrados</p>
+                    <p className="mt-1 text-xs text-zinc-500">Sabores são escolhas do produto, separados de adicionais pagos.</p>
+                  </div>
+                  <label className="flex h-10 min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-zinc-400 lg:w-72">
+                    <Search size={15} />
+                    <input value={flavorSearch} onChange={(event) => setFlavorSearch(event.target.value)} className="w-full bg-transparent text-white outline-none placeholder:text-zinc-500" placeholder="Buscar sabor" />
+                  </label>
+                </div>
+
+                <div className="mt-3 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+                  {visibleFlavors.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
+                      Nenhum sabor encontrado.
+                    </div>
+                  )}
+                  {visibleFlavors.map((flavor) => {
+                    const categoryName = flavor.categoryId ? menuAdmin.categories.find((category) => String(category.id) === flavor.categoryId)?.nome : ""
+                    const productName = flavor.productId ? menuAdmin.products.find((product) => String(product.id) === flavor.productId)?.nome : ""
+
+                    return (
+                      <div key={flavor.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-sm font-black text-white">{flavor.name}</strong>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${flavor.active ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"}`}>
+                              {flavor.active ? "Ativo" : "Inativo"}
+                            </span>
+                            {categoryName && <span className="rounded-full border border-cyan-300/25 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-black uppercase text-cyan-100">{categoryName}</span>}
+                            {productName && <span className="rounded-full border border-orange-300/25 bg-orange-400/10 px-2 py-0.5 text-[10px] font-black uppercase text-orange-100">{productName}</span>}
+                          </div>
+                          <p className="mt-1 truncate text-xs text-zinc-500">{flavor.notes || "Sem observação"}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => editFlavor(flavor)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                            <Edit3 size={14} />
+                            Editar
+                          </button>
+                          <button type="button" onClick={() => void toggleFlavorStatus(flavor)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition ${flavor.active ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"}`}>
+                            {flavor.active ? "Inativar" : "Ativar"}
+                          </button>
+                          <button type="button" onClick={() => void deleteFlavor(flavor)} className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.18]">
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {settingsPanelOpen && (
+          <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.92)] p-4">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Sistema</p>
+                <h2 className="text-xl font-black text-white">Configurações</h2>
+              </div>
+              <button type="button" onClick={() => showPanel("pedidos")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                <LayoutDashboard size={15} />
+                Voltar aos pedidos
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-3">
+              <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
+                <div className="flex items-center gap-2 text-sm font-black text-white">
+                  <Printer size={16} className="text-orange-300" />
+                  Impressora térmica
+                </div>
+                {!window.pitsDog?.printer && (
+                  <div className="mt-3 rounded-lg border border-orange-300/20 bg-orange-400/[0.08] p-3 text-xs font-bold leading-5 text-orange-50/80">
+                    Impressão direta disponível apenas no app desktop.
+                  </div>
+                )}
+                {printerFeedback && (
+                  <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.08] p-3 text-xs font-bold leading-5 text-cyan-50/80">
+                    {printerFeedback}
+                  </div>
+                )}
+                <div className="mt-3 space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">IP/Host da impressora</span>
+                    <input
+                      disabled={!window.pitsDog?.printer || printerLoading}
+                      value={printerConfig.host}
+                      onChange={(event) => setPrinterConfig({ ...printerConfig, host: event.target.value })}
+                      placeholder="192.168.3.17"
+                      className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Porta</span>
+                    <input
+                      disabled={!window.pitsDog?.printer || printerLoading}
+                      value={printerConfig.port}
+                      onChange={(event) => setPrinterConfig({ ...printerConfig, port: Number(event.target.value) || 9100 })}
+                      placeholder="9100"
+                      type="number"
+                      className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                    Ativar impressão direta
+                    <input
+                      disabled={!window.pitsDog?.printer || printerLoading}
+                      type="checkbox"
+                      checked={printerConfig.enabled}
+                      onChange={(event) => setPrinterConfig({ ...printerConfig, enabled: event.target.checked })}
+                      className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                    Imprimir automaticamente ao aceitar
+                    <input
+                      disabled={!window.pitsDog?.printer || printerLoading}
+                      type="checkbox"
+                      checked={localPanelSettings.autoPrint}
+                      onChange={(event) => {
+                        setLocalPanelSettings((settings) => ({ ...settings, autoPrint: event.target.checked }))
+                        setPrinterConfig({ ...printerConfig, autoPrintOnAccept: event.target.checked })
+                      }}
+                      className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </label>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <button type="button" onClick={() => void savePrinterSettings()} disabled={!window.pitsDog?.printer || printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50">
+                      {printerLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      Salvar
+                    </button>
+                    <button type="button" onClick={() => void checkPrinterConnection()} disabled={!window.pitsDog?.printer || printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+                      Testar conexão
+                    </button>
+                    <button type="button" onClick={() => void testPrinter()} disabled={!window.pitsDog?.printer || printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50">
+                      Testar impressão
+                    </button>
+                  </div>
+                </div>
+              </article>
+
+              <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
+                <div className="flex items-center gap-2 text-sm font-black text-white">
+                  <Store size={16} className="text-orange-300" />
+                  Configurações gerais
+                </div>
+                <div className="mt-3 space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Taxa padrão de entrega</span>
+                    <input min={0} step={0.5} type="number" value={localPanelSettings.defaultDeliveryFee} onChange={(event) => setLocalPanelSettings((settings) => ({ ...settings, defaultDeliveryFee: Math.max(0, Number(event.target.value) || 0) }))} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none" />
+                  </label>
+                  <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                    Modo compacto
+                    <input type="checkbox" checked={localPanelSettings.compactMode} onChange={(event) => setLocalPanelSettings((settings) => ({ ...settings, compactMode: event.target.checked }))} className="h-4 w-4 accent-orange-400" />
+                  </label>
+                </div>
+              </article>
+
+              <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
+                <div className="flex items-center gap-2 text-sm font-black text-white">
+                  <MessageCircle size={16} className="text-orange-300" />
+                  Integrações
+                </div>
+                <div className="mt-3 space-y-3">
+                  <button type="button" onClick={() => showPanel("zap")} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                    <MessageCircle size={15} />
+                    Abrir bot do Zap
+                  </button>
+                  <a href="https://pitsdog-cardapio-oficial.onrender.com" target="_blank" rel="noreferrer" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300">
+                    <Upload size={15} />
+                    Abrir cardápio
+                  </a>
+                </div>
+              </article>
+            </div>
+          </section>
+        )}
+
+        {addonModalProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm">
+            <section className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-orange-300/25 bg-[#100b08] shadow-[0_28px_90px_rgba(0,0,0,0.55)]">
+              <header className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-orange-400/[0.08] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Gerenciar adicionais</p>
+                  <h2 className="mt-1 text-xl font-black text-white">{addonModalProduct.nome}</h2>
+                </div>
+                <button type="button" onClick={closeProductAddons} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10">
+                  <X size={16} />
+                  Fechar
+                </button>
+              </header>
+
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {addonModalFeedback && (
+                  <div className="mb-3 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.08] p-3 text-sm font-bold leading-6 text-cyan-50/80">
+                    {addonModalFeedback}
+                  </div>
+                )}
+
+                <label className="flex h-10 min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-zinc-400">
+                  <Search size={15} />
+                  <input value={addonModalSearch} onChange={(event) => setAddonModalSearch(event.target.value)} className="w-full bg-transparent text-white outline-none placeholder:text-zinc-500" placeholder="Buscar adicional..." />
+                </label>
+
+                <div className="mt-3 space-y-2">
+                  {menuAdmin.additionals.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
+                      Nenhum adicional cadastrado.
+                    </div>
+                  )}
+                  {menuAdmin.additionals.length > 0 && menuAdmin.additionals.filter((additional) => normalizeText(`${additional.nome} ${additional.descricao}`).includes(normalizeText(addonModalSearch))).length === 0 && (
+                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
+                      Nenhum resultado na busca.
+                    </div>
+                  )}
+                  {menuAdmin.additionals
+                    .filter((additional) => normalizeText(`${additional.nome} ${additional.descricao}`).includes(normalizeText(addonModalSearch)))
+                    .map((additional) => {
+                      const addonId = String(additional.id)
+                      const selected = addonModalSelectedIds.includes(addonId)
+
+                      return (
+                        <button
+                          key={additional.id}
+                          type="button"
+                          onClick={() => setAddonModalSelectedIds((currentIds) => (
+                            selected ? currentIds.filter((id) => id !== addonId) : [...currentIds, addonId]
+                          ))}
+                          className={`flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition ${
+                            selected
+                              ? "border-orange-300/45 bg-orange-400/15"
+                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
+                          }`}
+                        >
+                          <span className="flex min-w-0 items-center gap-3">
+                            <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${
+                              selected ? "border-orange-300 bg-orange-400 text-black" : "border-white/15 bg-black/20 text-transparent"
+                            }`}>
+                              <Check size={14} />
+                            </span>
+                            <span className="min-w-0">
+                              <strong className="block truncate text-sm font-black text-white">{additional.nome}</strong>
+                              <span className="mt-0.5 block truncate text-xs text-zinc-500">{additional.descricao || "Sem descrição"}</span>
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 flex-col items-end gap-1">
+                            <span className="text-xs font-black text-orange-200">{formatCurrency(additional.preco)}</span>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
+                              additional.ativo ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"
+                            }`}>
+                              {additional.ativo ? "Ativo" : "Inativo"}
+                            </span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                </div>
+              </div>
+
+              <footer className="grid shrink-0 gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
+                <button type="button" onClick={closeProductAddons} disabled={addonModalSaving} className="h-11 rounded-lg border border-white/10 bg-white/5 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveProductAddons()}
+                  disabled={addonModalSaving || addonModalSelectedIds.slice().sort().join("|") === addonModalInitialIds.slice().sort().join("|")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-orange-400 text-sm font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {addonModalSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  {addonModalSaving ? "Salvando..." : "Salvar alterações"}
+                </button>
+              </footer>
+            </section>
+          </div>
         )}
 
         {isEditing && draft && selectedOrder && (
@@ -2351,7 +3320,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                  <div className="grid gap-2 sm:grid-cols-[220px_auto_auto]">
 	                    <input
 	                      value={courierDraft.name}
-	                      onChange={(event) => setCourierDraft({ name: event.target.value })}
+	                      onChange={(event) => setCourierDraft({ ...courierDraft, name: event.target.value })}
 	                      placeholder="Nome do motoboy"
 	                      className="h-10 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
 	                    />
@@ -2367,7 +3336,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                      <button
 	                        type="button"
 	                        onClick={() => {
-	                          setCourierDraft({ name: "" })
+	                          setCourierDraft(emptyDeliveryPersonDraft)
 	                          setEditingCourierId(null)
 	                        }}
 	                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
@@ -2760,6 +3729,77 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       />
                     </label>
 
+                    <div className="rounded-lg border border-white/10 bg-black/[0.24] p-3">
+                      <label className="flex items-center justify-between text-xs font-black uppercase text-zinc-400">
+                        Produto possui sabores?
+                        <input
+                          type="checkbox"
+                          checked={productDraft.hasFlavors ?? false}
+                          onChange={(event) => setProductDraft({
+                            ...productDraft,
+                            flavorIds: event.target.checked ? productDraft.flavorIds ?? [] : [],
+                            hasFlavors: event.target.checked,
+                          })}
+                          className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </label>
+
+                      {productDraft.hasFlavors && (
+                        <div className="mt-3 space-y-3">
+                          <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                            Sabor obrigatório
+                            <input
+                              type="checkbox"
+                              checked={productDraft.flavorRequired ?? true}
+                              onChange={(event) => setProductDraft({ ...productDraft, flavorRequired: event.target.checked })}
+                              className="h-4 w-4 accent-orange-400"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Máximo de sabores</span>
+                            <input
+                              min={1}
+                              type="number"
+                              value={productDraft.maxFlavors ?? 1}
+                              onChange={(event) => setProductDraft({ ...productDraft, maxFlavors: Math.max(1, Number(event.target.value) || 1) })}
+                              className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none"
+                            />
+                          </label>
+                          <div>
+                            <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Sabores disponíveis</span>
+                            <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-lg border border-white/10 bg-black/[0.18] p-2">
+                              {activeFlavors.length === 0 && (
+                                <span className="text-xs font-bold text-zinc-500">Cadastre sabores na tela Sabores.</span>
+                              )}
+                              {activeFlavors.map((flavor) => {
+                                const selected = (productDraft.flavorIds ?? []).includes(flavor.id)
+
+                                return (
+                                  <button
+                                    key={flavor.id}
+                                    type="button"
+                                    onClick={() => setProductDraft((currentDraft) => ({
+                                      ...currentDraft,
+                                      flavorIds: selected
+                                        ? (currentDraft.flavorIds ?? []).filter((flavorId) => flavorId !== flavor.id)
+                                        : [...(currentDraft.flavorIds ?? []), flavor.id],
+                                    }))}
+                                    className={`rounded-lg px-2.5 py-1 text-[11px] font-black transition ${
+                                      selected
+                                        ? "bg-orange-400 text-black"
+                                        : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                                    }`}
+                                  >
+                                    {flavor.name}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                   <button
                     type="button"
                     onClick={saveProduct}
@@ -2900,6 +3940,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         Adicionais
                                       </span>
                                     )}
+                                    {product.hasFlavors && (
+                                      <span className="rounded-full border border-cyan-300/25 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-black uppercase text-cyan-100">
+                                        Sabores {(product.flavorIds ?? []).length}
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">
                                     {product.descricao || "Sem descrição"} | {product.imageUrl ?? product.imagem ?? "Sem imagem"}
@@ -2909,6 +3954,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                   <button type="button" onClick={() => editProduct(product)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                                     <Edit3 size={14} />
                                     Editar
+                                  </button>
+                                  <button type="button" onClick={() => openProductAddons(product)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-orange-300/25 bg-orange-400/10 px-3 text-xs font-black text-orange-100 transition hover:bg-orange-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50">
+                                    <Plus size={14} />
+                                    Adicionais
                                   </button>
                                   <button type="button" onClick={() => toggleProductStatus(product)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                     product.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
@@ -3381,7 +4430,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <div className="mt-3 flex gap-2">
                     <input
                       value={courierDraft.name}
-                      onChange={(event) => setCourierDraft({ name: event.target.value })}
+                      onChange={(event) => setCourierDraft({ ...courierDraft, name: event.target.value })}
                       placeholder="Nome"
                       className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-xs font-bold text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
                     />

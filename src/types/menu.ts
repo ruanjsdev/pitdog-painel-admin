@@ -14,6 +14,8 @@ export type MenuCategoryDraft = Omit<MenuCategory, "id" | "imagem"> & {
 
 export type MenuProduct = {
   id: number
+  addonIds?: string[]
+  addons?: MenuAdditional[]
   nome: string
   destaque?: boolean
   highlight?: string | null
@@ -25,9 +27,14 @@ export type MenuProduct = {
   imageUrl?: string | null
   categoriaId: number
   permiteAdicionais?: boolean
+  hasFlavors?: boolean
+  flavorRequired?: boolean
+  flavorIds?: string[]
+  maxFlavors?: number
 }
 
 export type MenuProductDraft = {
+  addonIds?: string[]
   nome: string
   highlight: string
   descricao: string
@@ -36,6 +43,10 @@ export type MenuProductDraft = {
   imagem: string
   categoriaId: number
   permiteAdicionais: boolean
+  hasFlavors?: boolean
+  flavorRequired?: boolean
+  flavorIds?: string[]
+  maxFlavors?: number
 }
 
 export type MenuAdditional = {
@@ -47,3 +58,33 @@ export type MenuAdditional = {
 }
 
 export type MenuAdditionalDraft = Omit<MenuAdditional, "id">
+
+export type Addon = {
+  id: string
+  name: string
+  description?: string
+  price: number
+  active: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type ProductAddonLink = {
+  active?: boolean
+  addonId: string
+  priceOverride?: number
+  productId: string
+}
+
+export type ProductFlavor = {
+  id: string
+  name: string
+  active: boolean
+  categoryId?: string
+  productId?: string
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type ProductFlavorDraft = Omit<ProductFlavor, "createdAt" | "id" | "updatedAt">

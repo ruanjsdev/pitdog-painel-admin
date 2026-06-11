@@ -240,8 +240,8 @@ export function DashboardHeader({
         </div>
 
         <nav
-          className={`grid gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1 sm:grid-cols-2 xl:grid-cols-5 ${
-            panelSettings.compactNavigation ? "xl:w-[620px]" : "xl:w-[720px]"
+          className={`grid gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 ${
+            panelSettings.compactNavigation ? "xl:w-[880px]" : "xl:w-[1040px]"
           }`}
           aria-label="Navegação principal"
         >

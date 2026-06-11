@@ -8,14 +8,20 @@ const isDev = !app.isPackaged;
 const appIcon = isDev
   ? path.join(__dirname, "../build/icon.png")
   : path.join(process.resourcesPath, "build/icon.png");
+const defaultPrinterConfig = {
+  autoPrintOnAccept: false,
+  enabled: true,
+  host: "192.168.3.17",
+  port: 9100
+};
 const thermalReceiptPageSize = {
   width: 80000,
   height: 300000
 };
 const preferredPrinterName = process.env.PITS_DOG_PRINTER_NAME || "";
 const directPrinterDevice = process.env.PITS_DOG_PRINTER_DEVICE || "";
-const networkPrinterHost = process.env.PITS_DOG_PRINTER_HOST || "";
-const networkPrinterPort = Number(process.env.PITS_DOG_PRINTER_PORT || 9100);
+const environmentPrinterHost = process.env.PITS_DOG_PRINTER_HOST || "";
+const environmentPrinterPort = Number(process.env.PITS_DOG_PRINTER_PORT || defaultPrinterConfig.port);
 const likelyPrinterDevices = [
   "/dev/usb/lp0",
   "/dev/usb/lp1",
@@ -29,8 +35,74 @@ const likelyPrinterDevices = [
 const likelyNetworkPrinterHosts = [
   "192.168.3.17"
 ];
+const printerConfigPath = () => path.join(app.getPath("userData"), "printer-config.json");
 
 let mainWindow;
+
+function ok(data, message = "") {
+  return {
+    ok: true,
+    ...(data === undefined ? {} : { data }),
+    ...(message ? { message } : {})
+  };
+}
+
+function fail(error) {
+  return {
+    error: error instanceof Error ? error.message : String(error || "Não foi possível concluir a operação."),
+    ok: false
+  };
+}
+
+function normalizePrinterConfig(config = {}) {
+  const host = String(config.host ?? defaultPrinterConfig.host).trim();
+  const port = Number(config.port ?? defaultPrinterConfig.port);
+
+  if (!host) {
+    throw new Error("Informe o IP/host da impressora.");
+  }
+
+  if (!/^[a-z0-9.-]+$/i.test(host)) {
+    throw new Error("IP/host da impressora inválido.");
+  }
+
+  if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
+    throw new Error("Porta da impressora inválida. Use um número entre 1 e 65535.");
+  }
+
+  return {
+    autoPrintOnAccept: Boolean(config.autoPrintOnAccept ?? defaultPrinterConfig.autoPrintOnAccept),
+    enabled: Boolean(config.enabled ?? defaultPrinterConfig.enabled),
+    host,
+    port
+  };
+}
+
+async function readPrinterConfig() {
+  try {
+    const rawConfig = await fs.promises.readFile(printerConfigPath(), "utf8");
+
+    return normalizePrinterConfig(JSON.parse(rawConfig));
+  } catch (error) {
+    if (error?.code === "ENOENT") return defaultPrinterConfig;
+    if (error instanceof SyntaxError) return defaultPrinterConfig;
+
+    throw new Error("Não foi possível ler as configurações da impressora.");
+  }
+}
+
+async function savePrinterConfig(config) {
+  const normalizedConfig = normalizePrinterConfig(config);
+
+  try {
+    await fs.promises.mkdir(path.dirname(printerConfigPath()), { recursive: true });
+    await fs.promises.writeFile(printerConfigPath(), JSON.stringify(normalizedConfig, null, 2));
+
+    return normalizedConfig;
+  } catch {
+    throw new Error("Não foi possível salvar as configurações da impressora.");
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -263,7 +335,7 @@ async function writeDirectPrinterDevice(devicePath, payload) {
   }
 }
 
-function canConnectToPrinter(host, port = networkPrinterPort, timeoutMs = 700) {
+function canConnectToPrinter(host, port = defaultPrinterConfig.port, timeoutMs = 700) {
   return new Promise((resolve) => {
     const socket = net.createConnection({ host, port });
     let done = false;
@@ -282,17 +354,36 @@ function canConnectToPrinter(host, port = networkPrinterPort, timeoutMs = 700) {
   });
 }
 
-async function resolveNetworkPrinterHost() {
-  if (networkPrinterHost) return networkPrinterHost;
-
-  for (const host of likelyNetworkPrinterHosts) {
-    if (await canConnectToPrinter(host)) return host;
+async function resolveNetworkPrinterEndpoint() {
+  if (environmentPrinterHost) {
+    return {
+      host: environmentPrinterHost,
+      port: environmentPrinterPort
+    };
   }
 
-  return "";
+  const savedConfig = await readPrinterConfig();
+
+  if (savedConfig.enabled && savedConfig.host) {
+    return {
+      host: savedConfig.host,
+      port: savedConfig.port
+    };
+  }
+
+  for (const host of likelyNetworkPrinterHosts) {
+    if (await canConnectToPrinter(host, defaultPrinterConfig.port)) {
+      return {
+        host,
+        port: defaultPrinterConfig.port
+      };
+    }
+  }
+
+  return null;
 }
 
-function writeNetworkPrinter(host, payload, port = networkPrinterPort) {
+function writeNetworkPrinter(host, payload, port = defaultPrinterConfig.port) {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({ host, port });
     let finished = false;
@@ -314,19 +405,59 @@ function writeNetworkPrinter(host, payload, port = networkPrinterPort) {
     socket.once("connect", () => {
       socket.end(payload);
     });
-    socket.once("timeout", () => finish(new Error(`Tempo limite ao conectar na impressora ${host}:${port}.`)));
-    socket.once("error", (error) => finish(error));
+    socket.once("timeout", () => finish(new Error("Não foi possível conectar na impressora. Verifique se ela está ligada, no mesmo Wi-Fi e se o IP/porta estão corretos.")));
+    socket.once("error", () => finish(new Error("Não foi possível conectar na impressora. Verifique se ela está ligada, no mesmo Wi-Fi e se o IP/porta estão corretos.")));
     socket.once("close", (hadError) => {
       if (!hadError) finish();
     });
   });
 }
 
-async function printReceiptText(text) {
-  const payload = Buffer.from(`\x1b@${text.replace(/\r?\n/g, "\n")}\n\n\n\x1dV\x00`, "utf8");
-  const printerHost = await resolveNetworkPrinterHost();
+function normalizeReceiptText(value = "") {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E\n]/g, "")
+    .replace(/\r?\n/g, "\n")
+    .split("\n")
+    .flatMap((line) => {
+      const cleanLine = line.trimEnd();
+      if (cleanLine.length <= 42) return [cleanLine];
 
-  if (printerHost) return writeNetworkPrinter(printerHost, payload);
+      const chunks = [];
+      for (let index = 0; index < cleanLine.length; index += 42) {
+        chunks.push(cleanLine.slice(index, index + 42));
+      }
+      return chunks;
+    })
+    .join("\n");
+}
+
+function buildReceiptPayload(text) {
+  return Buffer.from(`\x1b@${normalizeReceiptText(text)}\n\n\n\x1dV\x00`, "utf8");
+}
+
+function buildPrinterTestText(config) {
+  return [
+    "PITS DOG",
+    "TESTE DE IMPRESSAO",
+    "",
+    "Impressora configurada com sucesso.",
+    "",
+    `IP: ${config.host}`,
+    `Porta: ${config.port}`,
+    "",
+    `Data/Hora: ${new Date().toLocaleString("pt-BR")}`,
+    "",
+    "Obrigado."
+  ].join("\n");
+}
+
+async function printReceiptText(text) {
+  const payload = buildReceiptPayload(text);
+  const printerEndpoint = await resolveNetworkPrinterEndpoint();
+
+  if (printerEndpoint) return writeNetworkPrinter(printerEndpoint.host, payload, printerEndpoint.port);
 
   const printerDevice = await findDirectPrinterDevice();
 
@@ -344,19 +475,77 @@ async function printReceiptText(text) {
 }
 
 ipcMain.handle("pitsdog:print-html", async (_event, html) => {
-  if (typeof html !== "string" || !html.trim()) {
-    throw new Error("Conteúdo de impressão inválido.");
-  }
+  try {
+    if (typeof html !== "string" || !html.trim()) {
+      throw new Error("Conteúdo de impressão inválido.");
+    }
 
-  return printHtml(html);
+    return ok(await printHtml(html));
+  } catch (error) {
+    return fail(error);
+  }
 });
 
 ipcMain.handle("pitsdog:print-receipt-text", async (_event, text) => {
-  if (typeof text !== "string" || !text.trim()) {
-    throw new Error("Conteúdo de impressão inválido.");
-  }
+  try {
+    if (typeof text !== "string" || !text.trim()) {
+      throw new Error("Conteúdo de impressão inválido.");
+    }
 
-  return printReceiptText(text);
+    return ok(await printReceiptText(text), "Comanda enviada para a impressora.");
+  } catch (error) {
+    return fail(error);
+  }
+});
+
+ipcMain.handle("pitsdog:printer-get-config", async () => {
+  try {
+    return ok(await readPrinterConfig());
+  } catch (error) {
+    return fail(error);
+  }
+});
+
+ipcMain.handle("pitsdog:printer-save-config", async (_event, config) => {
+  try {
+    return ok(await savePrinterConfig(config), "Configurações salvas com sucesso.");
+  } catch (error) {
+    return fail(error);
+  }
+});
+
+ipcMain.handle("pitsdog:printer-check-connection", async () => {
+  try {
+    const config = await readPrinterConfig();
+    const connected = await canConnectToPrinter(config.host, config.port, 1600);
+
+    if (!connected) {
+      return {
+        error: "Não foi possível conectar na impressora.",
+        ok: false
+      };
+    }
+
+    return ok({ connected: true }, "Conexão com a impressora confirmada.");
+  } catch (error) {
+    return fail(error);
+  }
+});
+
+ipcMain.handle("pitsdog:printer-test", async () => {
+  try {
+    const config = await readPrinterConfig();
+
+    if (!config.enabled) {
+      throw new Error("Ative a impressão direta antes de testar.");
+    }
+
+    await writeNetworkPrinter(config.host, buildReceiptPayload(buildPrinterTestText(config)), config.port);
+
+    return ok(undefined, "Impressão de teste enviada.");
+  } catch (error) {
+    return fail(error);
+  }
 });
 
 app.whenReady().then(createWindow);

@@ -244,16 +244,26 @@ function buildTicketHtml(title: string, order: Order, kind: TicketKind) {
 }
 
 async function printReceiptText(text: string) {
-  if (!window.pitsDogPrinter?.printReceiptText) {
+  const printerApi = window.pitsDog?.printer ?? window.pitsDogPrinter
+
+  if (!printerApi?.printReceiptText) {
     throw new Error("Impressão térmica por comando disponível apenas no app desktop.")
   }
 
-  await window.pitsDogPrinter.printReceiptText(text)
+  const result = await printerApi.printReceiptText(text)
+
+  if (!result.ok) {
+    throw new Error(result.error || "Não foi possível imprimir a comanda.")
+  }
 }
 
 async function printHtml(html: string) {
   if (window.pitsDogPrinter) {
-    await window.pitsDogPrinter.printHtml(html)
+    const result = await window.pitsDogPrinter.printHtml(html)
+
+    if (!result.ok) {
+      throw new Error(result.error || "Não foi possível imprimir a comanda.")
+    }
     return
   }
 
@@ -313,7 +323,7 @@ async function printTextCopies(text: string, copies = 1) {
 }
 
 export async function printKitchenTicket(order: Order, options: PrintOptions = {}) {
-  if (window.pitsDogPrinter?.printReceiptText) {
+  if (window.pitsDog?.printer?.printReceiptText || window.pitsDogPrinter?.printReceiptText) {
     await printTextCopies(buildTicketText("COMANDA COZINHA", order, "kitchen"), options.copies)
     return
   }
@@ -322,7 +332,7 @@ export async function printKitchenTicket(order: Order, options: PrintOptions = {
 }
 
 export async function printDeliveryLabel(order: Order, options: PrintOptions = {}) {
-  if (window.pitsDogPrinter?.printReceiptText) {
+  if (window.pitsDog?.printer?.printReceiptText || window.pitsDogPrinter?.printReceiptText) {
     await printTextCopies(buildTicketText("ETIQUETA ENTREGA", order, "delivery-label"), options.copies)
     return
   }
