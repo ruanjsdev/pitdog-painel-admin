@@ -47,8 +47,6 @@ function createWindow() {
     minimizable: true,
     maximizable: true,
     closable: true,
-
-    // Desativa fullscreen real para não quebrar layout
     fullscreenable: false,
 
     autoHideMenuBar: true,
@@ -65,19 +63,17 @@ function createWindow() {
 
   Menu.setApplicationMenu(null);
 
-  if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
-  }
+  const ADMIN_URL = isDev
+    ? "http://localhost:5173"
+    : "https://pitsdog-painel-admin.onrender.com";
 
-  // Abre já maximizado, mas como janela normal
+  mainWindow.loadURL(ADMIN_URL);
+
   mainWindow.once("ready-to-show", () => {
     mainWindow.maximize();
     mainWindow.show();
   });
 
-  // Impede F11 de ativar fullscreen
   mainWindow.webContents.on("before-input-event", (event, input) => {
     if (input.key === "F11" && input.type === "keyDown") {
       event.preventDefault();
@@ -90,7 +86,6 @@ function createWindow() {
     }
   });
 }
-
 async function resolvePrinterName(printWindow) {
   const printers = await printWindow.webContents.getPrintersAsync().catch(() => []);
 
