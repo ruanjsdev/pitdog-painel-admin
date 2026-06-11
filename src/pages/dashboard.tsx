@@ -445,7 +445,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </button>
               <a
                 className="inline-flex h-9 items-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-                href="https://pits-dog-oficial.netlify.app/"
+                href="https://pitsdog-cardapio-oficial.onrender.com"
                 target="_blank"
                 rel="noreferrer"
               >
