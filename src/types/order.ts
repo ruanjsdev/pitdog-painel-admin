@@ -1,4 +1,14 @@
-export type OrderStatus = "novo" | "preparando" | "saiu" | "cancelado" | "concluido"
+export type OrderStatus =
+  | "novo"
+  | "aprovado"
+  | "preparando"
+  | "pronto"
+  | "saiu"
+  | "cancelado"
+  | "concluido"
+  | "finalizado"
+
+export type PaymentStatus = "PENDENTE" | "CONFIRMADO" | "CANCELADO"
 
 export type DeliveryType = "Delivery" | "Mesa" | "Retirada"
 
@@ -14,9 +24,19 @@ export type Order = {
   total: number
   subtotal?: number
   deliveryFee?: number
+  courierId?: string
+  courierName?: string
   discount?: number
   discountPercent?: number
   discountReason?: string
+  needsChange?: boolean
+  changeFor?: number
+  paymentStatus?: PaymentStatus
+  paymentConfirmed?: boolean
+  paymentConfirmedAt?: string
+  paymentChangeFor?: number
+  paymentChangeValue?: number
+  backendPaymentMethod?: string
   payment: string
   delivery: DeliveryType
   status: OrderStatus

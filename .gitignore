@@ -22,3 +22,32 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Dependencias
+node_modules/
+
+# Build web
+dist/
+
+# Build Electron / instaladores
+release/
+*.AppImage
+*.exe
+*.dmg
+*.deb
+*.rpm
+*.blockmap
+latest.yml
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env local
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# Cache
+.vite/
+.DS_Store

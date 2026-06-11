@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import {
-  Bell,
+  AlertTriangle,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -8,35 +8,60 @@ import {
   DollarSign,
   Download,
   Edit3,
-  ExternalLink,
-  Filter,
   LayoutDashboard,
-  LogOut,
+  Loader2,
   MapPin,
-  Megaphone,
+  MessageCircle,
   MessageSquareText,
   PackageCheck,
   Plus,
-  Phone,
-  ReceiptText,
+  Printer,
+  QrCode,
+  RefreshCw,
   Save,
   Search,
   Settings,
   Store,
   Truck,
+  Upload,
   User,
   Users,
-  Volume2,
-  VolumeX,
   X,
   XCircle,
 } from "lucide-react"
 
-import { OrderCard } from "../components/order-card"
+import { DashboardHeader } from "../components/dashboard/dashboard-header"
+import { OrderFilters } from "../components/dashboard/order-filters"
+import { OrderList } from "../components/dashboard/order-list"
+import { OrderMetrics } from "../components/dashboard/order-metrics"
+import { CashPanel, ClientsPanel, MenuAdminPanel, OrderDetails } from "../components/dashboard/panel-wrappers"
 import { useLiveOrders } from "../hooks/use-live-orders"
 import { useMenuAdmin } from "../hooks/use-menu-admin"
-import { useNewOrderSound } from "../hooks/use-new-order-sound"
+import {
+  newOrderSoundModes,
+  normalizeNewOrderSoundModeId,
+  useNewOrderSound,
+  type NewOrderSoundModeId,
+} from "../hooks/use-new-order-sound"
 import { MainLayout } from "../layouts/main-layout"
+import {
+  activeOrdersWindowHours,
+  getActivePanelOrders,
+  orderHistoryRetentionDays,
+} from "../lib/order-sync"
+import { printApprovalTickets } from "../services/print-service"
+import {
+  fetchWhatsAppBotStatus,
+  fetchWhatsAppBotSettings,
+  getWhatsAppAdminPin,
+  getWhatsAppBotBaseUrl,
+  notifyWhatsAppOrderStatus,
+  saveWhatsAppBotConnectionSettings,
+  saveWhatsAppBotSettings,
+  sendWhatsAppTestMessage,
+  type WhatsAppBotSettings,
+  type WhatsAppBotStatus,
+} from "../services/whatsapp-bot-api"
 import type {
   MenuAdditional,
   MenuAdditionalDraft,
@@ -54,30 +79,75 @@ type DashboardProps = {
 type OrderFilter = "todos" | "mesa" | "retirada" | "entrega"
 type StatusFilter = "todos" | Order["status"]
 type MenuPanelSection = "categorias" | "produtos" | "adicionais"
-type DiscountMode = "valor" | "percentual"
 type CashTab = "todos" | "hamburgueres" | "cachorros" | "refrigerantes" | "adicionais" | "outros"
-type MainPanel = "pedidos" | "cardapio" | "caixa" | "clientes"
-type OrderDraft = Pick<Order, "address" | "customer" | "delivery" | "items" | "notes" | "payment" | "phone" | "total">
+type MainPanel = "pedidos" | "cardápio" | "caixa" | "clientes" | "zap"
+type Courier = {
+  active: boolean
+  id: string
+  name: string
+}
+type OrderDraft = Pick<Order, "customer" | "delivery" | "items" | "notes" | "payment" | "phone" | "total"> & {
+  address: string
+  changeFor: number
+  complement: string
+  courierId: string
+  deliveryFee: number
+  discount: number
+  discountPercent: number
+  discountReason: string
+  needsChange: boolean
+  neighborhood: string
+  productCategoryToAddId: number
+  productToAddId: number
+  productToAddNote: string
+  productToAddQuantity: number
+  street: string
+  subtotal: number
+  tableNumber: string
+}
+type ErrorDialog = {
+  message: string
+  reason: string
+  title: string
+}
+type StatusToast = {
+  id: number
+  message: string
+}
+type LocalPanelSettings = {
+  autoPrint: boolean
+  compactMode: boolean
+  defaultDeliveryFee: number
+  printCopies: number
+}
 
 const statusLabels: Record<string, string> = {
-  novo: "Aguardando aprovacao",
-  preparando: "Em preparacao",
-  saiu: "Pronto",
+  novo: "Aguardando aprovação",
+  aprovado: "Aprovado",
+  preparando: "Em preparação",
+  pronto: "Pronto",
+  saiu: "Saiu para entrega",
   cancelado: "Cancelado",
-  concluido: "Concluido",
+  concluido: "Concluído",
+  finalizado: "Finalizado",
 }
 
 const cancelReasons = [
   "Pedido duplicado",
   "Cancelado pelo cliente",
-  "Item indisponivel",
-  "Endereco fora da area",
-  "Pagamento nao confirmado",
+  "Item indisponível",
+  "Endereço fora da área",
+  "Pagamento não confirmado",
   "Pedido feito por engano",
 ]
 
-const paymentOptions = ["Pix", "Cartão", "Dinheiro"]
 const deliveryOptions: DeliveryType[] = ["Delivery", "Mesa", "Retirada"]
+const paymentOptions = ["Pix", "Dinheiro", "Cartão de crédito", "Cartão de débito"]
+const defaultDeliveryFee = 5
+const couriersStorageKey = "pitsdog:admin:couriers:v1"
+const soundModeStorageKey = "pitsdog:admin:sound-mode:v1"
+const pixSettingsStorageKey = "pitsdog:admin:pix-settings:v1"
+const localPanelSettingsStorageKey = "pitsdog:admin:local-panel-settings:v1"
 
 const emptyCategoryDraft: MenuCategoryDraft = {
   descricao: "",
@@ -94,6 +164,7 @@ const emptyProductDraft: MenuProductDraft = {
   highlight: "",
   imagem: "",
   nome: "",
+  permiteAdicionais: false,
   preco: 0,
 }
 
@@ -104,10 +175,10 @@ const emptyAdditionalDraft: MenuAdditionalDraft = {
   preco: 0,
 }
 
-const deliveryStyles: Record<string, string> = {
-  Delivery: "border-orange-300/40 bg-orange-400/12 text-orange-100",
-  Mesa: "border-cyan-300/40 bg-cyan-400/12 text-cyan-100",
-  Retirada: "border-white/15 bg-white/8 text-white",
+const deliveryHighlightStyles: Record<DeliveryType, string> = {
+  Delivery: "border-orange-300/45 bg-orange-400/18 text-orange-100",
+  Mesa: "border-cyan-300/45 bg-cyan-400/18 text-cyan-100",
+  Retirada: "border-white/18 bg-white/10 text-white",
 }
 
 const deliveryIcons: Record<string, typeof Truck> = {
@@ -116,13 +187,77 @@ const deliveryIcons: Record<string, typeof Truck> = {
   Retirada: PackageCheck,
 }
 
+function readCouriers() {
+  try {
+    return JSON.parse(window.localStorage.getItem(couriersStorageKey) ?? "[]") as Courier[]
+  } catch {
+    return []
+  }
+}
+
+function readSoundMode() {
+  try {
+    return normalizeNewOrderSoundModeId(window.localStorage.getItem(soundModeStorageKey))
+  } catch {
+    return "padrao" as NewOrderSoundModeId
+  }
+}
+
+function readPixSettings() {
+  const defaultPixSettings = {
+    pixKey: "41172968000182",
+    pixReceiverName: "Pedrinho francisco ferreira araujo - stone ip S.A.",
+  }
+
+  try {
+    const settings = {
+      ...defaultPixSettings,
+      ...JSON.parse(window.localStorage.getItem(pixSettingsStorageKey) ?? "{}"),
+    } as WhatsAppBotSettings
+
+    return {
+      ...settings,
+      pixKey: settings.pixKey?.trim() || defaultPixSettings.pixKey,
+      pixReceiverName: settings.pixReceiverName?.trim() || defaultPixSettings.pixReceiverName,
+    }
+  } catch {
+    return defaultPixSettings
+  }
+}
+
+function readLocalPanelSettings(): LocalPanelSettings {
+  try {
+    return {
+      autoPrint: true,
+      compactMode: false,
+      defaultDeliveryFee,
+      printCopies: 1,
+      ...JSON.parse(window.localStorage.getItem(localPanelSettingsStorageKey) ?? "{}"),
+    }
+  } catch {
+    return {
+      autoPrint: true,
+      compactMode: false,
+      defaultDeliveryFee,
+      printCopies: 1,
+    }
+  }
+}
+
 const cashTabLabels: Record<CashTab, string> = {
   adicionais: "Adicionais",
   cachorros: "Cachorros quentes",
-  hamburgueres: "Hamburgueres",
+  hamburgueres: "Hambúrgueres",
   outros: "Outros",
   refrigerantes: "Refrigerantes",
   todos: "Tudo que saiu",
+}
+
+function readWhatsAppConnectionSettings() {
+  return {
+    adminPin: getWhatsAppAdminPin(),
+    botUrl: getWhatsAppBotBaseUrl(),
+  }
 }
 
 function formatCurrency(value: number) {
@@ -132,12 +267,65 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
+function numberInputValue(value: number) {
+  return value === 0 ? "" : value
+}
+
+function readImageFile(event: ChangeEvent<HTMLInputElement>, onImageReady: (image: string) => void) {
+  const file = event.target.files?.[0]
+
+  if (!file) return
+
+  const reader = new FileReader()
+
+  reader.onload = () => {
+    if (typeof reader.result === "string") {
+      onImageReady(reader.result)
+    }
+  }
+
+  reader.readAsDataURL(file)
+  event.target.value = ""
+}
+
+function calculateDiscountAmount(subtotal: number, discount?: number, discountPercent?: number) {
+  if (discountPercent && discountPercent > 0) {
+    return subtotal * (discountPercent / 100)
+  }
+
+  return discount ?? 0
+}
+
+function calculateOrderTotal(order: Pick<Order, "deliveryFee" | "discount" | "discountPercent" | "subtotal" | "total">) {
+  const subtotal = order.subtotal ?? order.total
+  const discountAmount = calculateDiscountAmount(subtotal, order.discount, order.discountPercent)
+
+  return Number(Math.max(0, subtotal + (order.deliveryFee ?? 0) - discountAmount).toFixed(2))
+}
+
+function calculateDraftTotal(draft: OrderDraft) {
+  return calculateOrderTotal({
+    deliveryFee: draft.delivery === "Delivery" ? draft.deliveryFee : 0,
+    discount: draft.discount,
+    discountPercent: draft.discountPercent,
+    subtotal: draft.subtotal,
+    total: draft.total,
+  })
+}
+
 function getLocalDateInputValue(date = new Date()) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const day = String(date.getDate()).padStart(2, "0")
 
   return `${year}-${month}-${day}`
+}
+
+function getCurrentMonthRange(date = new Date()) {
+  return {
+    end: getLocalDateInputValue(date),
+    start: getLocalDateInputValue(new Date(date.getFullYear(), date.getMonth(), 1)),
+  }
 }
 
 function getOrderDateInputValue(order: Order) {
@@ -150,8 +338,15 @@ function normalizePhone(phone: string) {
   return phone.replace(/\D/g, "") || phone
 }
 
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
 function getPaymentBucket(payment: string) {
-  const normalized = payment.toLowerCase()
+  const normalized = normalizeText(payment)
 
   if (normalized.includes("pix")) return "pix"
   if (normalized.includes("dinheiro")) return "dinheiro"
@@ -160,8 +355,16 @@ function getPaymentBucket(payment: string) {
   return "outros"
 }
 
+function isFinishedStatus(status: Order["status"]) {
+  return status === "concluido" || status === "finalizado" || status === "cancelado"
+}
+
+function isMoneyReceived(order: Order) {
+  return order.status !== "cancelado"
+}
+
 function getCashCategory(itemName: string): CashTab {
-  const normalized = itemName.toLowerCase()
+  const normalized = normalizeText(itemName)
 
   if (normalized.includes("coca") || normalized.includes("guarana") || normalized.includes("refri") || normalized.includes("suco") || normalized.includes("agua")) {
     return "refrigerantes"
@@ -182,17 +385,82 @@ function getCashCategory(itemName: string): CashTab {
   return "outros"
 }
 
-function parseCashItem(rawItem: string) {
+function getCashCategoryFromMenu(
+  itemName: string,
+  productsByName: Map<string, MenuProduct>,
+  categoriesById: Map<number, MenuCategory>
+) {
+  const product = productsByName.get(normalizeText(itemName))
+  const categoryName = product ? categoriesById.get(product.categoriaId)?.nome ?? "" : ""
+
+  if (!categoryName) return getCashCategory(itemName)
+
+  const normalizedCategory = normalizeText(categoryName)
+
+  if (normalizedCategory.includes("cachorro") || normalizedCategory.includes("hot dog")) return "cachorros"
+  if (normalizedCategory.includes("burger") || normalizedCategory.includes("burguer") || normalizedCategory.includes("hamb")) return "hamburgueres"
+  if (normalizedCategory.includes("adicional")) return "adicionais"
+  if (normalizedCategory.includes("bebida") || normalizedCategory.includes("refri") || normalizedCategory.includes("suco")) return "refrigerantes"
+
+  return getCashCategory(itemName)
+}
+
+function parseCashItems(
+  rawItem: string,
+  productsByName: Map<string, MenuProduct>,
+  categoriesById: Map<number, MenuCategory>
+) {
+  const itemDetail = parseOrderItemDetail(rawItem)
+  const items = [{
+    category: getCashCategoryFromMenu(itemDetail.name, productsByName, categoriesById),
+    name: itemDetail.name,
+    quantity: itemDetail.quantity,
+  }]
+
+  itemDetail.additions.forEach((additionGroup) => {
+    additionGroup.split(",").map((addition) => addition.trim()).filter(Boolean).forEach((addition) => {
+      items.push({
+        category: "adicionais",
+        name: addition,
+        quantity: itemDetail.quantity,
+      })
+    })
+  })
+
+  return items
+}
+
+function parseOrderItemDetail(rawItem: string) {
   const quantityMatch = rawItem.match(/^(\d+)\s*x\s*/i)
   const quantity = quantityMatch ? Number(quantityMatch[1]) : 1
-  const withoutQuantity = rawItem.replace(/^(\d+)\s*x\s*/i, "")
-  const name = withoutQuantity.split(" + ")[0]?.split(" (")[0]?.trim() || rawItem
+  const withoutQuantity = rawItem.replace(/^(\d+)\s*x\s*/i, "").trim()
+  const noteMatch = withoutQuantity.match(/\(([^()]*)\)\s*$/)
+  const note = noteMatch?.[1]?.trim() ?? ""
+  const withoutNote = note ? withoutQuantity.replace(/\s*\([^()]*\)\s*$/, "").trim() : withoutQuantity
+  const [name = rawItem, ...additionParts] = withoutNote.split(" + ")
 
   return {
-    category: getCashCategory(name),
-    name,
+    additions: additionParts.map((addition) => addition.trim()).filter(Boolean),
+    name: name.trim() || rawItem,
+    note,
     quantity,
   }
+}
+
+function formatDraftAddress(draft: OrderDraft) {
+  if (draft.delivery === "Mesa") {
+    return `Mesa ${draft.tableNumber || draft.address || "-"}`
+  }
+
+  if (draft.delivery === "Retirada") {
+    return draft.address || "Retirada no balcão"
+  }
+
+  return [
+    draft.street || draft.address,
+    draft.neighborhood,
+    draft.complement,
+  ].filter(Boolean).join(", ")
 }
 
 function matchesFilter(order: Order, filter: OrderFilter) {
@@ -202,16 +470,81 @@ function matchesFilter(order: Order, filter: OrderFilter) {
   return order.delivery === "Mesa"
 }
 
+function isErrorNotice(message: string) {
+  const normalized = normalizeText(message)
+
+  return (
+    normalized.includes("nao foi possivel") ||
+    normalized.includes("erro") ||
+    normalized.includes("falhou") ||
+    normalized.includes("invalido") ||
+    normalized.includes("informe") ||
+    normalized.includes("conecte") ||
+    normalized.includes("necessario") ||
+    normalized.includes("pendencia") ||
+    normalized.includes("aguardando backend")
+  )
+}
+
+function getErrorReason(message: string) {
+  const normalized = normalizeText(message)
+
+  if (normalized.includes("api") || normalized.includes("backend") || normalized.includes("sinal")) {
+    return "A comunicação com o sistema principal não respondeu agora. Confira se a API/backend está online e tente novamente."
+  }
+
+  if (normalized.includes("informe") || normalized.includes("necessario") || normalized.includes("invalido")) {
+    return "Alguma informação obrigatória está faltando ou inválida. Revise os campos destacados e tente de novo."
+  }
+
+  if (normalized.includes("pendencia")) {
+    return "Existe uma alteração pendente de sincronização. Quando a conexão voltar, tente reenviar ou repita a ação."
+  }
+
+  return "O painel encontrou uma situação que precisa da sua atenção antes de continuar."
+}
+
+function getShortStatusMessage(changes: Partial<Order>, fallbackMessage: string) {
+  if (changes.status === "aprovado") return "Pedido aprovado"
+  if (changes.status === "preparando") return "Pedido aprovado e em preparo"
+  if (changes.status === "pronto") return "Pedido pronto"
+  if (changes.status === "saiu") return "Saiu para entrega"
+  if (changes.status === "concluido") return "Pedido concluído"
+  if (changes.status === "finalizado") return "Pedido finalizado"
+  if (changes.status === "cancelado") return "Pedido cancelado"
+
+  return fallbackMessage
+}
+
+function getWhatsAppEventForOrderStatus(status?: Order["status"]) {
+  if (status === "aprovado") return "pedido_aprovado"
+  if (status === "preparando") return "pedido_aprovado"
+  if (status === "pronto") return "pronto"
+  if (status === "saiu") return "saiu_entrega"
+  if (status === "concluido") return "finalizado"
+  if (status === "finalizado") return "finalizado"
+  if (status === "cancelado") return "cancelado"
+
+  return null
+}
+
 export function Dashboard({ onLogout }: DashboardProps) {
   const {
     connectionStatus,
-    lastSync,
+    isSyncing,
     orderList,
     applyOrderChanges,
+    restoreOrder,
     updateOrder,
     updateStoreStatus,
   } = useLiveOrders()
   const menuAdmin = useMenuAdmin()
+
+  // Limpa o cache local de menu ao montar o componente para remover dados "sujos"
+  useEffect(() => {
+    window.localStorage.removeItem("pitsdog:admin:menu:v1")
+  }, [])
+
   const [selectedOrderId, setSelectedOrderId] = useState<number>()
   const [activeFilter, setActiveFilter] = useState<OrderFilter>("todos")
   const [activeStatusFilter, setActiveStatusFilter] = useState<StatusFilter>("todos")
@@ -219,16 +552,23 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [hideFinished, setHideFinished] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [storeOpen, setStoreOpen] = useState(true)
-  const [notice, setNotice] = useState("Painel de gestão ")
+  const [notice, setNotice] = useState(
+    `Painel de gestão: pedidos ativos por ${activeOrdersWindowHours}h e histórico por ${orderHistoryRetentionDays} dias.`
+  )
+  const [errorDialog, setErrorDialog] = useState<ErrorDialog | null>(null)
+  const [statusToast, setStatusToast] = useState<StatusToast | null>(null)
+  const [actionOverlayLabel, setActionOverlayLabel] = useState("")
   const [isCanceling, setIsCanceling] = useState(false)
   const [cancelReason, setCancelReason] = useState(cancelReasons[0])
   const [categoryDraft, setCategoryDraft] = useState<MenuCategoryDraft>(emptyCategoryDraft)
   const [categoryFeedback, setCategoryFeedback] = useState("")
   const [categorySaving, setCategorySaving] = useState(false)
   const [productDraft, setProductDraft] = useState<MenuProductDraft>(emptyProductDraft)
+  const [productSaving, setProductSaving] = useState(false)
   const [productSearch, setProductSearch] = useState("")
   const [productCategoryFilter, setProductCategoryFilter] = useState(0)
   const [additionalDraft, setAdditionalDraft] = useState<MenuAdditionalDraft>(emptyAdditionalDraft)
+  const [additionalSaving, setAdditionalSaving] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
   const [editingProductId, setEditingProductId] = useState<number | null>(null)
   const [editingAdditionalId, setEditingAdditionalId] = useState<number | null>(null)
@@ -236,9 +576,25 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [menuPanelOpen, setMenuPanelOpen] = useState(false)
   const [cashPanelOpen, setCashPanelOpen] = useState(false)
   const [clientsPanelOpen, setClientsPanelOpen] = useState(false)
+  const [zapPanelOpen, setZapPanelOpen] = useState(false)
   const [cashTab, setCashTab] = useState<CashTab>("todos")
-  const [reportDate, setReportDate] = useState(getLocalDateInputValue())
+  const [reportStartDate, setReportStartDate] = useState(getLocalDateInputValue())
+  const [reportEndDate, setReportEndDate] = useState(getLocalDateInputValue())
   const [selectedClientPhone, setSelectedClientPhone] = useState("")
+  const [whatsAppBotStatus, setWhatsAppBotStatus] = useState<WhatsAppBotStatus | null>(null)
+  const [whatsAppBotLoading, setWhatsAppBotLoading] = useState(false)
+  const [whatsAppBotError, setWhatsAppBotError] = useState("")
+  const [whatsAppConnectionSettings, setWhatsAppConnectionSettings] = useState(readWhatsAppConnectionSettings)
+  const [whatsAppTestPhone, setWhatsAppTestPhone] = useState("")
+  const [whatsAppTestSending, setWhatsAppTestSending] = useState(false)
+  const [pixSettings, setPixSettings] = useState<WhatsAppBotSettings>(readPixSettings)
+  const [pixSettingsSaving, setPixSettingsSaving] = useState(false)
+  const [pixSettingsFeedback, setPixSettingsFeedback] = useState("")
+  const [updatingOrderIds, setUpdatingOrderIds] = useState<Set<number>>(() => new Set())
+  const updatingOrderIdsRef = useRef(new Set<number>())
+  const [couriers, setCouriers] = useState<Courier[]>(readCouriers)
+  const [courierDraft, setCourierDraft] = useState({ name: "" })
+  const [editingCourierId, setEditingCourierId] = useState<string | null>(null)
   const [clientNotes, setClientNotes] = useState<Record<string, string>>(() => {
     try {
       return JSON.parse(window.localStorage.getItem("pitsdog:admin:client-notes:v1") ?? "{}") as Record<string, string>
@@ -247,37 +603,265 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
   })
   const [soundEnabled, setSoundEnabled] = useState(true)
-  const [discountMode, setDiscountMode] = useState<DiscountMode>("valor")
-  const [discountValue, setDiscountValue] = useState(0)
-  const [discountReason, setDiscountReason] = useState("")
-  const [discountOrderId, setDiscountOrderId] = useState<number | null>(null)
+  const [soundModeId, setSoundModeId] = useState<NewOrderSoundModeId>(readSoundMode)
+  const [localPanelSettings, setLocalPanelSettings] = useState<LocalPanelSettings>(readLocalPanelSettings)
   const [draft, setDraft] = useState<OrderDraft | null>(null)
-  const orderSound = useNewOrderSound(orderList, { enabled: soundEnabled })
+  const [activePanelClock, setActivePanelClock] = useState(() => Date.now())
+  const [syncClock, setSyncClock] = useState(() => (
+    new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+  ))
+  const activeOrderList = useMemo(
+    () => getActivePanelOrders(orderList, activePanelClock),
+    [activePanelClock, orderList]
+  )
+  const orderSound = useNewOrderSound(activeOrderList, { enabled: soundEnabled, soundModeId })
 
-  const activeSelectedOrderId = selectedOrderId ?? orderList[0]?.id
-  const selectedOrder = orderList.find((order) => order.id === activeSelectedOrderId)
-  const discountOrder = orderList.find((order) => order.id === discountOrderId)
+  const activeSelectedOrderId = selectedOrderId ?? activeOrderList[0]?.id
+  const selectedOrder = activeOrderList.find((order) => order.id === activeSelectedOrderId)
+  const selectedOrderStorageId = selectedOrder ? selectedOrder.backendId ?? selectedOrder.id : undefined
+  const selectedOrderIsUpdating = selectedOrderStorageId ? updatingOrderIds.has(selectedOrderStorageId) : false
+
+  function showNotice(message: string) {
+    if (isErrorNotice(message)) {
+      setErrorDialog({
+        message,
+        reason: getErrorReason(message),
+        title: "Atenção no painel",
+      })
+      return
+    }
+
+    setNotice(message)
+  }
+
+  function showStatusToast(message: string, durationMs = 6500) {
+    const toastId = Date.now()
+
+    setStatusToast({
+      id: toastId,
+      message,
+    })
+
+    window.setTimeout(() => {
+      setStatusToast((currentToast) => (
+        currentToast?.id === toastId ? null : currentToast
+      ))
+    }, durationMs)
+  }
+
+  async function refreshWhatsAppBotStatus(showSuccessNotice = false) {
+    setWhatsAppBotLoading(true)
+    setWhatsAppBotError("")
+
+    try {
+      const status = await fetchWhatsAppBotStatus()
+
+      setWhatsAppBotStatus(status)
+
+      if (showSuccessNotice) {
+        showStatusToast(status.connected ? "WhatsApp conectado" : "Status do Zap atualizado")
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível conectar ao bot WhatsApp."
+
+      setWhatsAppBotError(message)
+
+      if (showSuccessNotice) {
+        showNotice(message)
+      }
+    } finally {
+      setWhatsAppBotLoading(false)
+    }
+  }
+
+  async function refreshPixSettings() {
+    try {
+      const settings = await fetchWhatsAppBotSettings()
+
+      setPixSettings(settings)
+      window.localStorage.setItem(pixSettingsStorageKey, JSON.stringify(settings))
+      setPixSettingsFeedback("")
+    } catch (error) {
+      setPixSettingsFeedback(error instanceof Error ? error.message : "Não foi possível carregar a chave PIX do bot.")
+    }
+  }
+
+  function saveWhatsAppConnectionSettings() {
+    const botUrl = whatsAppConnectionSettings.botUrl.trim().replace(/\/$/, "")
+
+    if (!botUrl) {
+      setWhatsAppBotError("Informe a URL do bot WhatsApp no Render.")
+      return
+    }
+
+    saveWhatsAppBotConnectionSettings({
+      adminPin: whatsAppConnectionSettings.adminPin,
+      botUrl,
+    })
+    setWhatsAppConnectionSettings({
+      ...whatsAppConnectionSettings,
+      botUrl,
+    })
+    setWhatsAppBotStatus(null)
+    setWhatsAppBotError("")
+    showStatusToast("URL do bot salva")
+    void refreshWhatsAppBotStatus(true)
+  }
+
+  async function savePixSettings() {
+    setPixSettingsSaving(true)
+    setPixSettingsFeedback("")
+
+    try {
+      const settings = await saveWhatsAppBotSettings(pixSettings)
+
+      setPixSettings(settings)
+      window.localStorage.setItem(pixSettingsStorageKey, JSON.stringify(settings))
+      setPixSettingsFeedback("Chave PIX salva no bot.")
+      showStatusToast("PIX salvo")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível salvar a chave PIX."
+
+      window.localStorage.setItem(pixSettingsStorageKey, JSON.stringify(pixSettings))
+      setPixSettingsFeedback(`${message} Uma cópia ficou salva neste painel.`)
+      showNotice(message)
+    } finally {
+      setPixSettingsSaving(false)
+    }
+  }
+
+  async function testWhatsAppMessage() {
+    setWhatsAppTestSending(true)
+    setWhatsAppBotError("")
+
+    try {
+      await sendWhatsAppTestMessage(whatsAppTestPhone)
+      showStatusToast("Teste enviado no WhatsApp")
+      void refreshWhatsAppBotStatus()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível enviar a mensagem de teste."
+
+      setWhatsAppBotError(message)
+      showNotice(message)
+    } finally {
+      setWhatsAppTestSending(false)
+    }
+  }
+
+  useEffect(() => {
+    function handleRuntimeError(event: ErrorEvent) {
+      setErrorDialog({
+        message: event.message || "Erro inesperado no painel.",
+        reason: "O navegador identificou uma falha inesperada na tela. Clique em continuar e tente repetir a ação.",
+        title: "Erro inesperado",
+      })
+    }
+
+    function handleUnhandledRejection(event: PromiseRejectionEvent) {
+      const reason = event.reason instanceof Error
+        ? event.reason.message
+        : typeof event.reason === "string"
+          ? event.reason
+          : "Erro inesperado no painel."
+
+      setErrorDialog({
+        message: reason,
+        reason: "Uma ação assíncrona não conseguiu finalizar. Isso costuma acontecer quando a API está offline ou demorou para responder.",
+        title: "Erro inesperado",
+      })
+    }
+
+    window.addEventListener("error", handleRuntimeError)
+    window.addEventListener("unhandledrejection", handleUnhandledRejection)
+
+    return () => {
+      window.removeEventListener("error", handleRuntimeError)
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection)
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(couriersStorageKey, JSON.stringify(couriers))
+  }, [couriers])
+
+  useEffect(() => {
+    window.localStorage.setItem(soundModeStorageKey, soundModeId)
+  }, [soundModeId])
+
+  useEffect(() => {
+    window.localStorage.setItem(localPanelSettingsStorageKey, JSON.stringify(localPanelSettings))
+  }, [localPanelSettings])
+
+  useEffect(() => {
+    void refreshPixSettings()
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActivePanelClock(Date.now())
+    }, 60 * 1000)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSyncClock(new Date().toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }))
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedOrderId) return
+    if (activeOrderList.some((order) => order.id === selectedOrderId)) return
+
+    setSelectedOrderId(undefined)
+  }, [activeOrderList, selectedOrderId])
+
+  useEffect(() => {
+    if (!zapPanelOpen) return
+
+    void refreshWhatsAppBotStatus()
+
+    const timer = window.setInterval(() => {
+      void refreshWhatsAppBotStatus()
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [zapPanelOpen])
 
   const counts = useMemo(() => {
     const countByDelivery = (delivery: string) =>
-      orderList.filter((order) => order.delivery === delivery && order.status !== "cancelado").length
+      activeOrderList.filter((order) => order.delivery === delivery && order.status !== "cancelado").length
 
     return {
-      all: orderList.length,
+      all: activeOrderList.length,
       mesa: countByDelivery("Mesa"),
       retirada: countByDelivery("Retirada"),
       entrega: countByDelivery("Delivery"),
-      novo: orderList.filter((order) => order.status === "novo").length,
-      preparando: orderList.filter((order) => order.status === "preparando").length,
-      saiu: orderList.filter((order) => order.status === "saiu").length,
-      cancelado: orderList.filter((order) => order.status === "cancelado").length,
-      concluido: orderList.filter((order) => order.status === "concluido").length,
+      novo: activeOrderList.filter((order) => order.status === "novo").length,
+      aprovado: activeOrderList.filter((order) => order.status === "aprovado").length,
+      preparando: activeOrderList.filter((order) => order.status === "preparando").length,
+      pronto: activeOrderList.filter((order) => order.status === "pronto").length,
+      saiu: activeOrderList.filter((order) => order.status === "saiu").length,
+      cancelado: activeOrderList.filter((order) => order.status === "cancelado").length,
+      concluido: activeOrderList.filter((order) => order.status === "concluido").length,
+      finalizado: activeOrderList.filter((order) => order.status === "finalizado").length,
     }
-  }, [orderList])
+  }, [activeOrderList])
 
   const metrics = [
     {
-      label: "Aguardando aprovacao",
+      label: "Aguardando aprovação",
       value: String(counts.novo),
       detail: "novos pedidos",
       icon: Clock3,
@@ -286,23 +870,23 @@ export function Dashboard({ onLogout }: DashboardProps) {
     {
       label: "Atualizado",
       value: "0",
-      detail: "sem pendencias",
+      detail: "sem pendências",
       icon: CheckCircle2,
       status: "todos" as StatusFilter,
     },
     {
-      label: "Em preparacao",
-      value: String(counts.preparando),
+      label: "Em preparação",
+      value: String(counts.aprovado + counts.preparando),
       detail: "na cozinha",
       icon: PackageCheck,
       status: "preparando" as StatusFilter,
     },
     {
       label: "Pronto",
-      value: String(counts.saiu),
-      detail: "aguardando saida",
+      value: String(counts.pronto + counts.saiu),
+      detail: "aguardando saída",
       icon: Truck,
-      status: "saiu" as StatusFilter,
+      status: "pronto" as StatusFilter,
     },
     {
       label: "Pronto retirada",
@@ -326,29 +910,33 @@ export function Dashboard({ onLogout }: DashboardProps) {
       status: "cancelado" as StatusFilter,
     },
     {
-      label: "Concluido",
-      value: String(counts.concluido),
-      detail: "pedidos finalizados",
+      label: "Finalizado",
+      value: String(counts.finalizado),
+      detail: "pedidos encerrados",
       icon: CheckCircle2,
-      status: "concluido" as StatusFilter,
+      status: "finalizado" as StatusFilter,
     },
   ]
 
   const visibleOrders = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
 
-    return orderList.filter((order) => {
+    return activeOrderList.filter((order) => {
       const matchesSearch =
         !normalizedSearch ||
         order.customer.toLowerCase().includes(normalizedSearch) ||
         String(order.id).includes(normalizedSearch)
 
-      const matchesFinished = !hideFinished || (order.status !== "concluido" && order.status !== "cancelado")
+      const matchesFinished = !hideFinished || !isFinishedStatus(order.status)
       const matchesStatus = activeStatusFilter === "todos" || order.status === activeStatusFilter
 
       return matchesFilter(order, activeFilter) && matchesSearch && matchesFinished && matchesStatus
     })
-  }, [activeFilter, activeStatusFilter, hideFinished, orderList, search])
+  }, [activeFilter, activeOrderList, activeStatusFilter, hideFinished, search])
+  const visibleOrdersWithTotals = visibleOrders.map((order) => ({
+    ...order,
+    total: calculateOrderTotal(order),
+  }))
 
   const visibleProducts = useMemo(() => {
     const normalizedSearch = productSearch.trim().toLowerCase()
@@ -359,12 +947,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
         product.nome.toLowerCase().includes(normalizedSearch) ||
         product.descricao.toLowerCase().includes(normalizedSearch) ||
         (product.highlight ?? product.subtitle ?? "").toLowerCase().includes(normalizedSearch)
+
       const matchesCategory =
         productCategoryFilter === 0 || product.categoriaId === productCategoryFilter
 
       return matchesSearch && matchesCategory
     })
-  }, [menuAdmin.products, productCategoryFilter, productSearch])
+  }, [menuAdmin.categories, menuAdmin.products, productCategoryFilter, productSearch])
 
   const productGroups = useMemo(() => {
     const categoriesById = new Map(menuAdmin.categories.map((category) => [category.id, category]))
@@ -394,50 +983,78 @@ export function Dashboard({ onLogout }: DashboardProps) {
     () => orderList.filter((order) => order.status !== "cancelado"),
     [orderList]
   )
+  const normalizedReportStartDate = reportStartDate <= reportEndDate ? reportStartDate : reportEndDate
+  const normalizedReportEndDate = reportStartDate <= reportEndDate ? reportEndDate : reportStartDate
+  const reportPeriodLabel = normalizedReportStartDate === normalizedReportEndDate
+    ? normalizedReportStartDate
+    : `${normalizedReportStartDate} até ${normalizedReportEndDate}`
   const reportOrders = useMemo(
-    () => cashOrders.filter((order) => getOrderDateInputValue(order) === reportDate),
-    [cashOrders, reportDate]
+    () => cashOrders.filter((order) => {
+      const orderDate = getOrderDateInputValue(order)
+
+      return orderDate >= normalizedReportStartDate && orderDate <= normalizedReportEndDate
+    }),
+    [cashOrders, normalizedReportEndDate, normalizedReportStartDate]
   )
   const cashItems = useMemo(() => {
     const itemMap = new Map<string, { category: CashTab; name: string; quantity: number }>()
+    const productsByName = new Map(
+      menuAdmin.products.map((product) => [normalizeText(product.nome), product])
+    )
+    const categoriesById = new Map(menuAdmin.categories.map((category) => [category.id, category]))
 
     reportOrders.forEach((order) => {
       order.items.forEach((rawItem) => {
-        const item = parseCashItem(rawItem)
-        const currentItem = itemMap.get(item.name)
+        parseCashItems(rawItem, productsByName, categoriesById).forEach((item) => {
+          const key = `${item.category}:${normalizeText(item.name)}`
+          const currentItem = itemMap.get(key)
 
-        if (currentItem) {
-          itemMap.set(item.name, {
-            ...currentItem,
-            quantity: currentItem.quantity + item.quantity,
-          })
-          return
-        }
+          if (currentItem) {
+            itemMap.set(key, {
+              ...currentItem,
+              quantity: currentItem.quantity + item.quantity,
+            })
+            return
+          }
 
-        itemMap.set(item.name, item)
+          itemMap.set(key, item)
+        })
       })
     })
 
     return [...itemMap.values()].sort((first, second) => second.quantity - first.quantity)
-  }, [reportOrders])
+  }, [menuAdmin.categories, menuAdmin.products, reportOrders])
   const visibleCashItems = cashTab === "todos"
     ? cashItems
     : cashItems.filter((item) => item.category === cashTab)
+  const activeCouriers = couriers.filter((courier) => courier.active)
+  const reportDeliveryOrders = reportOrders.filter((order) => order.delivery === "Delivery" && order.status !== "cancelado")
+  const courierStats = couriers.map((courier) => ({
+    ...courier,
+    ordersCount: reportOrders.filter((order) => order.courierId === courier.id).length,
+  }))
+  const activeMenuCategories = menuAdmin.categories.filter((category) => category.ativo)
+  const draftProductsInCategory = menuAdmin.products.filter((product) => {
+    if (!product.ativo) return false
+    if (!draft?.productCategoryToAddId) return true
+
+    return product.categoriaId === draft.productCategoryToAddId
+  })
   const completedRevenue = reportOrders
-    .filter((order) => order.status === "concluido")
-    .reduce((total, order) => total + order.total, 0)
+    .filter(isMoneyReceived)
+    .reduce((total, order) => total + calculateOrderTotal(order), 0)
   const openRevenue = reportOrders
-    .filter((order) => order.status !== "concluido")
-    .reduce((total, order) => total + order.total, 0)
-  const completedOrdersCount = reportOrders.filter((order) => order.status === "concluido").length
+    .filter((order) => order.status !== "cancelado" && !isMoneyReceived(order))
+    .reduce((total, order) => total + calculateOrderTotal(order), 0)
+  const completedOrdersCount = reportOrders.filter(isMoneyReceived).length
   const averageTicket = completedOrdersCount ? completedRevenue / completedOrdersCount : 0
   const paymentSummary = useMemo(() => {
     const summary = { cartao: 0, dinheiro: 0, outros: 0, pix: 0 }
 
     reportOrders
-      .filter((order) => order.status === "concluido")
+      .filter(isMoneyReceived)
       .forEach((order) => {
-        summary[getPaymentBucket(order.payment)] += order.total
+        summary[getPaymentBucket(order.payment)] += calculateOrderTotal(order)
       })
 
     return summary
@@ -463,7 +1080,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       }
 
       currentClient.orders.push(order)
-      currentClient.total += order.status === "cancelado" ? 0 : order.total
+      currentClient.total += order.status === "cancelado" ? 0 : calculateOrderTotal(order)
       currentClient.name = currentClient.name || order.customer
       currentClient.phone = currentClient.phone || order.phone
       if (order.address && order.address !== "-") currentClient.addresses.add(order.address)
@@ -485,11 +1102,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const selectedClient = clientProfiles.find((client) => client.key === selectedClientPhone) ?? clientProfiles[0]
 
   function selectOrder(order: Order) {
+    orderSound.acknowledgeOrder(order)
     setSelectedOrderId(order.id)
     setIsEditing(false)
     setIsCanceling(false)
     setDraft(null)
-    setNotice(`Pedido #${order.id} selecionado.`)
+    showNotice(`Pedido #${order.id} selecionado.`)
   }
 
   function updateClientNote(clientKey: string, note: string) {
@@ -499,17 +1117,102 @@ export function Dashboard({ onLogout }: DashboardProps) {
     window.localStorage.setItem("pitsdog:admin:client-notes:v1", JSON.stringify(nextNotes))
   }
 
+  function addCourier() {
+    const name = courierDraft.name.trim()
+
+    if (!name) {
+      showNotice("Informe o nome do motoboy para cadastrar.")
+      return
+    }
+
+    if (editingCourierId) {
+      setCouriers((currentCouriers) => currentCouriers.map((courier) => (
+        courier.id === editingCourierId ? { ...courier, name } : courier
+      )))
+      setCourierDraft({ name: "" })
+      setEditingCourierId(null)
+      showNotice(`${name} atualizado no cadastro de motoboys.`)
+      return
+    }
+
+    setCouriers((currentCouriers) => [
+      ...currentCouriers,
+      {
+        active: true,
+        id: `motoboy-${Date.now()}`,
+        name,
+      },
+    ])
+    setCourierDraft({ name: "" })
+    showNotice(`${name} cadastrado como motoboy.`)
+  }
+
+  function editCourier(courier: Courier) {
+    setCourierDraft({ name: courier.name })
+    setEditingCourierId(courier.id)
+    showNotice(`Editando motoboy ${courier.name}.`)
+  }
+
+  async function assignCourierToOrder(order: Order, courierId: string) {
+    const selectedCourier = couriers.find((courier) => courier.id === courierId)
+    const orderId = order.backendId ?? order.id
+    const previousOrder = order
+    const changes = {
+      courierId: courierId || undefined,
+      courierName: selectedCourier?.name,
+    }
+
+    applyOrderChanges(orderId, changes)
+    try {
+      const updated = await updateOrder(orderId, changes, courierId
+        ? `Motoboy ${selectedCourier?.name ?? ""} vinculado ao pedido #${order.id}.`
+        : `Motoboy removido do pedido #${order.id}.`
+      )
+
+      if (!updated) {
+        applyOrderChanges(orderId, previousOrder)
+        showNotice("Não foi possível salvar o motoboy na API agora.")
+        return
+      }
+
+      showStatusToast(courierId ? "Motoboy selecionado" : "Motoboy removido")
+    } catch (error) {
+      applyOrderChanges(orderId, previousOrder)
+      showNotice(error instanceof Error ? error.message : "Não foi possível salvar o motoboy na API agora.")
+    }
+  }
+
+  function updateDraftDelivery(delivery: DeliveryType) {
+    if (!draft) return
+    const deliveryFee = delivery === "Delivery" ? draft.deliveryFee || localPanelSettings.defaultDeliveryFee : 0
+
+    const nextDraft = {
+      ...draft,
+      courierId: delivery === "Delivery" ? draft.courierId : "",
+      delivery,
+      deliveryFee,
+    }
+
+    setDraft({
+      ...nextDraft,
+      total: calculateDraftTotal(nextDraft),
+    })
+  }
+
   function exportDailyReport() {
     const rows = [
-      ["Pedido", "Cliente", "Telefone", "Status", "Entrega", "Pagamento", "Total", "Horario"],
+      ["Período", reportPeriodLabel],
+      [],
+      ["Pedido", "Cliente", "Telefone", "Status", "Entrega", "Motoboy", "Pagamento", "Total", "Horário"],
       ...reportOrders.map((order) => [
         `#${order.id}`,
         order.customer,
         order.phone,
         statusLabels[order.status] ?? order.status,
         order.delivery,
+        order.courierName ?? "",
         order.payment,
-        String(order.total).replace(".", ","),
+        String(calculateOrderTotal(order)).replace(".", ","),
         order.time,
       ]),
     ]
@@ -521,61 +1224,217 @@ export function Dashboard({ onLogout }: DashboardProps) {
     const link = document.createElement("a")
 
     link.href = url
-    link.download = `fechamento-pitsdog-${reportDate}.csv`
+    link.download = `fechamento-pitsdog-${normalizedReportStartDate}-a-${normalizedReportEndDate}.csv`
     link.click()
     window.URL.revokeObjectURL(url)
-    setNotice(`Relatorio de ${reportDate} exportado.`)
+    showNotice(`Relatório de ${reportPeriodLabel} exportado.`)
   }
 
   async function updateSelectedOrder(changes: Partial<Order>, message: string) {
     if (!selectedOrder) return false
 
-    const orderId = selectedOrder.backendId ?? selectedOrder.id
-    const previousOrder = selectedOrder
-
-    applyOrderChanges(orderId, changes)
-    setNotice(message)
-
-    const updated = await updateOrder(orderId, changes)
-
-    if (!updated) {
-      applyOrderChanges(orderId, previousOrder)
-      setNotice("Nao foi possivel salvar na API agora. Alteracao desfeita.")
+    if (selectedOrder.delivery === "Delivery" && changes.status === "saiu" && !selectedOrder.courierId) {
+      showNotice("Selecione um motoboy antes de enviar o pedido para entrega.")
+      return false
     }
 
-    return updated
+    const orderId = selectedOrder.backendId ?? selectedOrder.id
+    const previousOrder = selectedOrder
+    const isStatusAction = "status" in changes || "backendStatus" in changes
+
+    if (updatingOrderIdsRef.current.has(orderId)) return false
+
+    updatingOrderIdsRef.current.add(orderId)
+    setUpdatingOrderIds((currentIds) => new Set(currentIds).add(orderId))
+    setActionOverlayLabel(isStatusAction ? "Atualizando pedido..." : "Salvando alterações do pedido...")
+
+    // Para evitar que os itens sumam após o sync do backend,
+    // garantimos que o payload de atualização contenha os itens atuais
+    const updatePayload = {
+      ...changes,
+      items: changes.items ?? selectedOrder.items,
+    }
+
+    applyOrderChanges(orderId, updatePayload)
+
+    try {
+      const updated = await updateOrder(orderId, updatePayload, message)
+
+      if (!updated) {
+        applyOrderChanges(orderId, previousOrder)
+        showNotice("Não foi possível salvar na API agora. Alteração desfeita e registrada como pendente.")
+        return false
+      }
+
+      if (isStatusAction) {
+        showStatusToast(getShortStatusMessage(changes, message))
+
+        if (changes.status === "preparando" && localPanelSettings.autoPrint) {
+          void printApprovalTickets({ ...previousOrder, ...changes }, { copies: localPanelSettings.printCopies }).catch((error) => {
+            console.warn("Não foi possível imprimir a comanda automaticamente.", error)
+            showNotice(error instanceof Error ? error.message : "Não foi possível imprimir a comanda automaticamente.")
+          })
+        }
+
+        const whatsAppEvent = getWhatsAppEventForOrderStatus(changes.status)
+
+        if (whatsAppEvent) {
+          void notifyWhatsAppOrderStatus(whatsAppEvent, { ...previousOrder, ...changes }).catch((error) => {
+            const message = error instanceof Error ? error.message : "Não foi possível enviar atualização pelo WhatsApp."
+
+            console.warn("Não foi possível enviar atualização pelo WhatsApp.", error)
+            showNotice(message)
+          })
+        }
+      } else {
+        showStatusToast(getShortStatusMessage(changes, message), 8500)
+        showNotice(message)
+      }
+
+      return true
+    } catch (error) {
+      applyOrderChanges(orderId, previousOrder)
+      showNotice(error instanceof Error ? error.message : "Não foi possível salvar a alteração agora.")
+      return false
+    } finally {
+      setUpdatingOrderIds((currentIds) => {
+        const nextIds = new Set(currentIds)
+        nextIds.delete(orderId)
+        return nextIds
+      })
+      updatingOrderIdsRef.current.delete(orderId)
+      setActionOverlayLabel("")
+    }
+  }
+
+  async function restoreSelectedOrder() {
+    if (!selectedOrder) return false
+
+    const orderId = selectedOrder.backendId ?? selectedOrder.id
+    if (updatingOrderIdsRef.current.has(orderId)) return false
+
+    updatingOrderIdsRef.current.add(orderId)
+    setUpdatingOrderIds((currentIds) => new Set(currentIds).add(orderId))
+
+    try {
+      const updated = await restoreOrder(selectedOrder)
+
+      if (updated) {
+        showStatusToast("Pedido restaurado")
+      }
+
+      return updated
+    } finally {
+      setUpdatingOrderIds((currentIds) => {
+        const nextIds = new Set(currentIds)
+        nextIds.delete(orderId)
+        return nextIds
+      })
+      updatingOrderIdsRef.current.delete(orderId)
+    }
   }
 
   function startEdit() {
     if (!selectedOrder) return
+    if (selectedOrder.status === "cancelado") {
+      showNotice("Pedido cancelado não pode ser editado. Restaure o pedido antes de alterar.")
+      return
+    }
+
+    const parsedTableNumber = selectedOrder.delivery === "Mesa"
+      ? selectedOrder.address.replace(/^Mesa\s*/i, "")
+      : ""
 
     setDraft({
       address: selectedOrder.address,
+      changeFor: selectedOrder.changeFor ?? 0,
+      complement: "",
+      courierId: selectedOrder.courierId ?? "",
       customer: selectedOrder.customer,
       delivery: selectedOrder.delivery,
+      deliveryFee: selectedOrder.delivery === "Delivery"
+        ? selectedOrder.deliveryFee ?? localPanelSettings.defaultDeliveryFee
+        : 0,
+      discount: selectedOrder.discount ?? 0,
+      discountPercent: selectedOrder.discountPercent ?? 0,
+      discountReason: selectedOrder.discountReason ?? "",
       items: selectedOrder.items.length ? selectedOrder.items : [""],
+      needsChange: selectedOrder.needsChange ?? false,
+      neighborhood: "",
       notes: selectedOrder.notes ?? "",
       payment: selectedOrder.payment,
       phone: selectedOrder.phone,
-      total: selectedOrder.total,
+      productCategoryToAddId: menuAdmin.categories.find((category) => category.ativo)?.id ?? 0,
+      productToAddId: 0,
+      productToAddNote: "",
+      productToAddQuantity: 1,
+      street: selectedOrder.delivery === "Delivery" ? selectedOrder.address : "",
+      subtotal: selectedOrder.subtotal ?? selectedOrder.total,
+      tableNumber: parsedTableNumber === "-" ? "" : parsedTableNumber,
+      total: calculateOrderTotal(selectedOrder),
     })
     setIsEditing(true)
     setIsCanceling(false)
-    setNotice(`Editando pedido #${selectedOrder.id}.`)
+    showNotice(`Editando pedido #${selectedOrder.id}.`)
   }
 
   async function saveEdit() {
     if (!draft || !selectedOrder) return
+    showNotice(`Salvando alterações do pedido #${selectedOrder.id}...`)
+
+    const selectedCourier = couriers.find((courier) => courier.id === draft.courierId)
+    const discountChanges = {
+      discount: draft.discount > 0 ? draft.discount : undefined,
+      discountPercent: draft.discountPercent > 0 ? Math.min(draft.discountPercent, 35) : undefined,
+      discountReason: draft.discountReason.trim() || undefined,
+    }
 
     const updated = await updateSelectedOrder({
-      ...draft,
+      address: formatDraftAddress(draft),
+      changeFor: draft.payment === "Dinheiro" && draft.needsChange ? draft.changeFor : undefined,
+      courierId: draft.delivery === "Delivery" ? draft.courierId || undefined : undefined,
+      courierName: draft.delivery === "Delivery" ? selectedCourier?.name : undefined,
+      customer: draft.customer,
+      delivery: draft.delivery,
+      deliveryFee: draft.delivery === "Delivery" ? draft.deliveryFee : 0,
+      ...discountChanges,
       items: draft.items.map((item) => item.trim()).filter(Boolean),
+      needsChange: draft.payment === "Dinheiro" ? draft.needsChange : undefined,
+      notes: draft.notes,
+      payment: draft.payment,
+      phone: draft.phone,
+      subtotal: draft.subtotal,
+      total: calculateDraftTotal(draft),
     }, `Pedido #${selectedOrder.id} atualizado no painel.`)
 
     if (updated) {
       setIsEditing(false)
       setDraft(null)
+      showStatusToast(`Pedido #${selectedOrder.id} atualizado com sucesso.`, 9000)
     }
+  }
+
+  function addDraftProduct() {
+    if (!draft || !draft.productToAddId) return
+
+    const product = menuAdmin.products.find((currentProduct) => currentProduct.id === draft.productToAddId)
+
+    if (!product) return
+
+    const quantity = Math.max(1, draft.productToAddQuantity)
+    const note = draft.productToAddNote.trim() ? ` (${draft.productToAddNote.trim()})` : ""
+    const itemText = `${quantity}x ${product.nome}${note}`
+
+    setDraft({
+      ...draft,
+      items: [...draft.items, itemText],
+      productCategoryToAddId: draft.productCategoryToAddId,
+      productToAddId: 0,
+      productToAddNote: "",
+      productToAddQuantity: 1,
+      subtotal: Number((draft.subtotal + product.preco * quantity).toFixed(2)),
+      total: Number((calculateDraftTotal({ ...draft, subtotal: draft.subtotal + product.preco * quantity })).toFixed(2)),
+    })
   }
 
   async function confirmCancel() {
@@ -596,33 +1455,37 @@ export function Dashboard({ onLogout }: DashboardProps) {
       const message = "Informe o nome da categoria para salvar."
 
       setCategoryFeedback(message)
-      setNotice(message)
+      showNotice(message)
       return
     }
 
     setCategorySaving(true)
     setCategoryFeedback("Salvando categoria na API...")
-    setNotice("Salvando categoria na API...")
+    setActionOverlayLabel(editingCategoryId ? "Salvando edição da categoria..." : "Adicionando categoria...")
+    showNotice("Salvando categoria na API...")
 
     try {
       if (editingCategoryId) {
         await menuAdmin.updateCategory(editingCategoryId, categoryDraft)
-        setNotice(`${categoryDraft.nome} atualizado no cardapio.`)
-        setCategoryFeedback(`${categoryDraft.nome} atualizado no cardapio.`)
+        showNotice(`${categoryDraft.nome} atualizado no cardápio.`)
+        showStatusToast(`${categoryDraft.nome} atualizado no cardápio.`, 8500)
+        setCategoryFeedback(`${categoryDraft.nome} atualizado no cardápio.`)
       } else {
         await menuAdmin.createCategory(categoryDraft)
-        setNotice(`${categoryDraft.nome} cadastrado no cardapio.`)
-        setCategoryFeedback(`${categoryDraft.nome} cadastrado no cardapio.`)
+        showNotice(`${categoryDraft.nome} cadastrado no cardápio.`)
+        showStatusToast(`${categoryDraft.nome} cadastrado no cardápio.`, 8500)
+        setCategoryFeedback(`${categoryDraft.nome} cadastrado no cardápio.`)
       }
 
       setCategoryDraft(emptyCategoryDraft)
       setEditingCategoryId(null)
     } catch (error) {
       console.error("Erro ao salvar categoria", error)
-      setNotice("Nao foi possivel salvar a categoria na API agora.")
-      setCategoryFeedback("Nao foi possivel salvar a categoria na API agora. Veja o console para o erro da API.")
+      showNotice("Não foi possível salvar a categoria na API agora.")
+      setCategoryFeedback("Não foi possível salvar a categoria na API agora. Veja o console para o erro da API.")
     } finally {
       setCategorySaving(false)
+      setActionOverlayLabel("")
     }
   }
 
@@ -635,65 +1498,69 @@ export function Dashboard({ onLogout }: DashboardProps) {
       nome: category.nome,
       ordem: category.ordem,
     })
-    setNotice(`Editando categoria ${category.nome}.`)
+    showNotice(`Editando categoria ${category.nome}.`)
   }
 
   function cancelCategoryEdit() {
     setCategoryDraft(emptyCategoryDraft)
     setEditingCategoryId(null)
     setCategoryFeedback("")
-    setNotice("Edicao de categoria cancelada.")
+    showNotice("Edição de categoria cancelada.")
   }
 
   async function toggleCategoryStatus(category: MenuCategory) {
     const nextStatus = !category.ativo
 
     menuAdmin.applyCategoryStatus(category.id, nextStatus)
-    setNotice(nextStatus ? "Categoria ativada no painel." : "Categoria desativada no painel.")
+    showNotice(nextStatus ? "Categoria ativada no painel." : "Categoria desativada no painel.")
 
     try {
-      await menuAdmin.updateCategoryStatus(category.id, nextStatus)
-      setNotice(nextStatus ? "Categoria ativada no cardapio." : "Categoria desativada no cardapio.")
-    } catch {
+      try {
+        await menuAdmin.updateCategoryStatus(category.id, nextStatus)
+      } catch {
+        await menuAdmin.updateCategory(category.id, {
+          ativo: nextStatus,
+          descricao: category.descricao,
+          imagem: category.imagem ?? "",
+          nome: category.nome,
+          ordem: category.ordem,
+        })
+      }
+      showNotice(nextStatus ? "Categoria ativada no cardápio." : "Categoria desativada no cardápio.")
+    } catch (error) {
       menuAdmin.applyCategoryStatus(category.id, category.ativo)
-      setNotice("Nao foi possivel alterar a categoria na API agora.")
-    }
-  }
-
-  async function removeCategory(category: MenuCategory) {
-    if (!window.confirm(`Excluir a categoria ${category.nome}?`)) return
-
-    menuAdmin.removeCategoryFromPanel(category.id)
-    setNotice(`${category.nome} removida do painel.`)
-
-    try {
-      await menuAdmin.deleteCategory(category.id)
-      setNotice(`${category.nome} removida do cardapio.`)
-    } catch {
-      menuAdmin.restoreCategory(category)
-      setNotice("Nao foi possivel excluir a categoria na API agora.")
+      showNotice(error instanceof Error ? error.message : "Não foi possível alterar a categoria na API agora.")
     }
   }
 
   async function saveProduct() {
     if (!productDraft.nome.trim() || !productDraft.categoriaId) {
-      setNotice("Informe nome e categoria para salvar o produto.")
+      showNotice("Informe nome e categoria para salvar o produto.")
       return
     }
+
+    setProductSaving(true)
+    setActionOverlayLabel(editingProductId ? "Salvando edição do produto..." : "Adicionando produto...")
+    showNotice(editingProductId ? "Salvando edição do produto..." : "Adicionando produto...")
 
     try {
       if (editingProductId) {
         await menuAdmin.updateProduct(editingProductId, productDraft)
-        setNotice(`${productDraft.nome} atualizado no cardapio.`)
+        showNotice(`${productDraft.nome} atualizado no cardápio.`)
+        showStatusToast(`${productDraft.nome} atualizado no cardápio.`, 8500)
       } else {
         await menuAdmin.createProduct(productDraft)
-        setNotice(`${productDraft.nome} cadastrado no cardapio.`)
+        showNotice(`${productDraft.nome} cadastrado no cardápio.`)
+        showStatusToast(`${productDraft.nome} cadastrado no cardápio.`, 8500)
       }
 
       setProductDraft(emptyProductDraft)
       setEditingProductId(null)
-    } catch {
-      setNotice("Nao foi possivel salvar o produto na API agora.")
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Não foi possível salvar o produto na API agora.")
+    } finally {
+      setProductSaving(false)
+      setActionOverlayLabel("")
     }
   }
 
@@ -706,67 +1573,75 @@ export function Dashboard({ onLogout }: DashboardProps) {
       highlight: product.highlight ?? product.subtitle ?? "",
       imagem: product.imageUrl ?? product.imagem ?? "",
       nome: product.nome,
+      permiteAdicionais: product.permiteAdicionais ?? false,
       preco: product.preco,
     })
     setMenuPanelSection("produtos")
-    setNotice(`Editando produto ${product.nome}.`)
+    showNotice(`Editando produto ${product.nome}.`)
   }
 
   function cancelProductEdit() {
     setProductDraft(emptyProductDraft)
     setEditingProductId(null)
-    setNotice("Edicao de produto cancelada.")
+    showNotice("Edição de produto cancelada.")
   }
 
   async function toggleProductStatus(product: MenuProduct) {
     const nextStatus = !product.ativo
 
     menuAdmin.applyProductStatus(product.id, nextStatus)
-    setNotice(nextStatus ? "Produto ativado no painel." : "Produto desativado no painel.")
+    showNotice(nextStatus ? "Produto ativado no painel." : "Produto desativado no painel.")
 
     try {
-      await menuAdmin.updateProductStatus(product)
-      setNotice(nextStatus ? "Produto ativado no cardapio." : "Produto desativado no cardapio.")
-    } catch {
+      try {
+        await menuAdmin.updateProductStatus(product)
+      } catch {
+        await menuAdmin.updateProduct(product.id, {
+          ativo: nextStatus,
+          categoriaId: product.categoriaId,
+          descricao: product.descricao,
+          highlight: product.highlight ?? product.subtitle ?? "",
+          imagem: product.imageUrl ?? product.imagem ?? "",
+          nome: product.nome,
+          permiteAdicionais: product.permiteAdicionais ?? false,
+          preco: product.preco,
+        })
+      }
+      showNotice(nextStatus ? "Produto ativado no cardápio." : "Produto desativado no cardápio.")
+    } catch (error) {
       menuAdmin.applyProductStatus(product.id, product.ativo)
-      setNotice("Nao foi possivel alterar o produto na API agora.")
-    }
-  }
-
-  async function removeProduct(product: MenuProduct) {
-    if (!window.confirm(`Excluir o produto ${product.nome}?`)) return
-
-    menuAdmin.removeProductFromPanel(product.id)
-    setNotice(`${product.nome} removido do painel.`)
-
-    try {
-      await menuAdmin.deleteProduct(product.id)
-      setNotice(`${product.nome} removido do cardapio.`)
-    } catch {
-      menuAdmin.restoreProduct(product)
-      setNotice("Nao foi possivel excluir o produto na API agora.")
+      showNotice(error instanceof Error ? error.message : "Não foi possível alterar o produto na API agora.")
     }
   }
 
   async function saveAdditional() {
     if (!additionalDraft.nome.trim()) {
-      setNotice("Informe o nome do adicional.")
+      showNotice("Informe o nome do adicional.")
       return
     }
+
+    setAdditionalSaving(true)
+    setActionOverlayLabel(editingAdditionalId ? "Salvando edição do adicional..." : "Adicionando adicional...")
+    showNotice(editingAdditionalId ? "Salvando edição do adicional..." : "Adicionando adicional...")
 
     try {
       if (editingAdditionalId) {
         await menuAdmin.updateAdditional(editingAdditionalId, additionalDraft)
-        setNotice(`${additionalDraft.nome} atualizado no cardapio.`)
+        showNotice(`${additionalDraft.nome} atualizado no cardápio.`)
+        showStatusToast(`${additionalDraft.nome} atualizado no cardápio.`, 8500)
       } else {
         await menuAdmin.createAdditional(additionalDraft)
-        setNotice(`${additionalDraft.nome} cadastrado no cardapio.`)
+        showNotice(`${additionalDraft.nome} cadastrado no cardápio.`)
+        showStatusToast(`${additionalDraft.nome} cadastrado no cardápio.`, 8500)
       }
 
       setAdditionalDraft(emptyAdditionalDraft)
       setEditingAdditionalId(null)
-    } catch {
-      setNotice("Nao foi possivel salvar o adicional na API agora.")
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Não foi possível salvar o adicional na API agora.")
+    } finally {
+      setAdditionalSaving(false)
+      setActionOverlayLabel("")
     }
   }
 
@@ -779,75 +1654,36 @@ export function Dashboard({ onLogout }: DashboardProps) {
       preco: additional.preco,
     })
     setMenuPanelSection("adicionais")
-    setNotice(`Editando adicional ${additional.nome}.`)
+    showNotice(`Editando adicional ${additional.nome}.`)
   }
 
   function cancelAdditionalEdit() {
     setAdditionalDraft(emptyAdditionalDraft)
     setEditingAdditionalId(null)
-    setNotice("Edicao de adicional cancelada.")
+    showNotice("Edição de adicional cancelada.")
   }
 
   async function toggleAdditionalStatus(additional: MenuAdditional) {
     const nextStatus = !additional.ativo
 
     menuAdmin.applyAdditionalStatus(additional.id, nextStatus)
-    setNotice(nextStatus ? "Adicional ativado no painel." : "Adicional desativado no painel.")
+    showNotice(nextStatus ? "Adicional ativado no painel." : "Adicional desativado no painel.")
 
     try {
-      await menuAdmin.updateAdditionalStatus(additional)
-      setNotice(nextStatus ? "Adicional ativado no cardapio." : "Adicional desativado no cardapio.")
-    } catch {
+      try {
+        await menuAdmin.updateAdditionalStatus(additional)
+      } catch {
+        await menuAdmin.updateAdditional(additional.id, {
+          ativo: nextStatus,
+          descricao: additional.descricao,
+          nome: additional.nome,
+          preco: additional.preco,
+        })
+      }
+      showNotice(nextStatus ? "Adicional ativado no cardápio." : "Adicional desativado no cardápio.")
+    } catch (error) {
       menuAdmin.applyAdditionalStatus(additional.id, additional.ativo)
-      setNotice("Nao foi possivel alterar o adicional na API agora.")
-    }
-  }
-
-  async function removeAdditional(additional: MenuAdditional) {
-    if (!window.confirm(`Excluir o adicional ${additional.nome}?`)) return
-
-    menuAdmin.removeAdditionalFromPanel(additional.id)
-    setNotice(`${additional.nome} removido do painel.`)
-
-    try {
-      await menuAdmin.deleteAdditional(additional.id)
-      setNotice(`${additional.nome} removido do cardapio.`)
-    } catch {
-      menuAdmin.restoreAdditional(additional)
-      setNotice("Nao foi possivel excluir o adicional na API agora.")
-    }
-  }
-
-  async function applyDiscount() {
-    if (!discountOrder) return
-
-    if (discountValue <= 0 || !discountReason.trim()) {
-      setNotice("Informe o valor e o motivo do desconto.")
-      return
-    }
-
-    const orderId = discountOrder.backendId ?? discountOrder.id
-    const previousOrder = discountOrder
-    const changes = {
-      discount: discountMode === "valor" ? discountValue : undefined,
-      discountPercent: discountMode === "percentual" ? discountValue : undefined,
-      discountReason,
-    }
-
-    applyOrderChanges(orderId, changes)
-    setNotice(`Desconto aplicado ao pedido #${discountOrder.id}.`)
-
-    const updated = await updateOrder(orderId, changes)
-
-    if (!updated) {
-      applyOrderChanges(orderId, previousOrder)
-      setNotice("Nao foi possivel salvar o desconto na API agora. Alteracao desfeita.")
-    }
-
-    if (updated) {
-      setDiscountValue(0)
-      setDiscountReason("")
-      setDiscountOrderId(null)
+      showNotice(error instanceof Error ? error.message : "Não foi possível alterar o adicional na API agora.")
     }
   }
 
@@ -858,11 +1694,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
     { label: "Entrega", value: "entrega", count: counts.entrega },
   ]
   const SelectedDeliveryIcon = selectedOrder ? deliveryIcons[selectedOrder.delivery] ?? PackageCheck : PackageCheck
-  const connectionLabel = {
-    "not-configured": "Aguardando backend",
-    offline: "Backend offline",
-    online: lastSync ? `Ao vivo ${lastSync}` : "Ao vivo",
-  }[connectionStatus]
   const menuSignal = {
     "not-configured": {
       className: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
@@ -881,39 +1712,155 @@ export function Dashboard({ onLogout }: DashboardProps) {
     },
   }[connectionStatus]
   const menuConnectionLabel = {
-    "not-configured": "Cardapio sem backend",
-    offline: "Cardapio offline",
-    online: "Cardapio conectado",
+    "not-configured": "Cardápio sem backend",
+    offline: "Cardápio offline",
+    online: "Cardápio conectado",
   }[menuAdmin.status]
   const backendReady = connectionStatus === "online"
-  const activePanel = menuPanelOpen ? "cardapio" : cashPanelOpen ? "caixa" : clientsPanelOpen ? "clientes" : "pedidos"
+  const activePanel = zapPanelOpen ? "zap" : menuPanelOpen ? "cardápio" : cashPanelOpen ? "caixa" : clientsPanelOpen ? "clientes" : "pedidos"
+  const showingOrdersPanel = activePanel === "pedidos"
   const navigationItems = [
     { description: `${visibleOrders.length} na tela`, icon: LayoutDashboard, label: "Pedidos", value: "pedidos" },
-    { description: `${menuAdmin.products.length} produtos`, icon: Settings, label: "Cardapio", value: "cardapio" },
+    { description: `${visibleProducts.length} produtos`, icon: Settings, label: "Cardápio", value: "cardápio" },
     { description: formatCurrency(completedRevenue), icon: DollarSign, label: "Caixa", value: "caixa" },
     { description: `${clientProfiles.length} contatos`, icon: Users, label: "Clientes", value: "clientes" },
+    { description: whatsAppBotStatus?.connected ? "conectado" : "QR e mensagens", icon: MessageCircle, label: "Zap", value: "zap" },
   ] as const
 
   function showPanel(panel: MainPanel) {
-    setMenuPanelOpen(panel === "cardapio")
+    setMenuPanelOpen(panel === "cardápio")
     setCashPanelOpen(panel === "caixa")
     setClientsPanelOpen(panel === "clientes")
-    setNotice(
+    setZapPanelOpen(panel === "zap")
+    showNotice(
       panel === "pedidos"
         ? "Tela principal de pedidos aberta."
-        : panel === "cardapio"
-          ? "Gerenciamento do cardapio aberto."
+        : panel === "cardápio"
+          ? "Gerenciamento do cardápio aberto."
           : panel === "caixa"
             ? "Fluxo de caixa aberto."
-            : "Historico de clientes aberto."
+            : panel === "clientes"
+              ? "Histórico de clientes aberto."
+              : "Central do Zap aberta."
     )
   }
+
+  useEffect(() => {
+    const hasSecondaryScreen = isEditing || isCanceling || Boolean(errorDialog) || activePanel !== "pedidos"
+
+    if (!hasSecondaryScreen) return
+
+    const guardState = { pitsDogAdminBackGuard: true }
+
+    window.history.pushState(guardState, "", window.location.href)
+
+    function handlePopState() {
+      if (errorDialog) {
+        setErrorDialog(null)
+      } else if (isEditing) {
+        setIsEditing(false)
+        setDraft(null)
+        setNotice(selectedOrder ? `Edição do pedido #${selectedOrder.id} fechada.` : "Edição fechada.")
+      } else if (isCanceling) {
+        setIsCanceling(false)
+      } else if (activePanel !== "pedidos") {
+        setMenuPanelOpen(false)
+        setCashPanelOpen(false)
+        setClientsPanelOpen(false)
+        setZapPanelOpen(false)
+        setNotice("Tela principal de pedidos aberta.")
+      }
+
+      window.history.pushState(guardState, "", window.location.href)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [activePanel, errorDialog, isCanceling, isEditing, selectedOrder])
+
+  useEffect(() => {
+    if (!menuPanelOpen && !cashPanelOpen) return
+
+    void menuAdmin.loadMenu()
+  }, [cashPanelOpen, menuPanelOpen])
 
   return (
     <MainLayout>
       <div className={`flex h-full w-full flex-col overflow-hidden px-3 py-3 sm:px-4 lg:px-5 ${
         storeOpen ? "bg-white/[0.03]" : "bg-red-950/35"
-      }`}>
+      } ${localPanelSettings.compactMode ? "text-[0.93rem]" : ""}`}>
+        {statusToast && (
+          <div
+            key={statusToast.id}
+            className="fixed left-1/2 top-5 z-[80] flex min-h-12 w-[min(94vw,560px)] -translate-x-1/2 items-center justify-center gap-2 rounded-lg border border-emerald-200/45 bg-emerald-400 px-4 py-3 text-center text-sm font-black text-black shadow-[0_22px_70px_rgba(52,211,153,0.34)]"
+            role="status"
+          >
+            <Check size={17} />
+            <span>{statusToast.message}</span>
+          </div>
+        )}
+
+        {actionOverlayLabel && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="status" aria-live="polite">
+            <div className="grid w-full max-w-sm justify-items-center gap-3 rounded-lg border border-orange-300/25 bg-[#100b08] px-5 py-6 text-center shadow-[0_28px_90px_rgba(0,0,0,0.62)]">
+              <Loader2 className="animate-spin text-orange-300" size={34} />
+              <strong className="text-base font-black text-white">{actionOverlayLabel}</strong>
+              <p className="text-sm font-bold text-zinc-400">Aguarde a confirmação antes de clicar de novo.</p>
+            </div>
+          </div>
+        )}
+
+        {errorDialog && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/72 p-4 backdrop-blur-sm">
+            <section
+              className="w-full max-w-md overflow-hidden rounded-lg border border-red-300/30 bg-[#120b08] shadow-[0_28px_90px_rgba(0,0,0,0.62)]"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-error-title"
+            >
+              <header className="border-b border-red-300/15 bg-red-500/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-red-400 text-black">
+                    <AlertTriangle size={22} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-200">
+                      Erro do painel
+                    </p>
+                    <h2 id="dashboard-error-title" className="mt-1 text-xl font-black text-white">
+                      {errorDialog.title}
+                    </h2>
+                  </div>
+                </div>
+              </header>
+
+              <div className="space-y-4 px-5 py-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-zinc-500">O que aconteceu</p>
+                  <p className="mt-2 text-sm font-bold leading-6 text-white">{errorDialog.message}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/25 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-orange-300">Por quê</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">{errorDialog.reason}</p>
+                </div>
+              </div>
+
+              <footer className="border-t border-white/10 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setErrorDialog(null)}
+                  className="h-11 w-full rounded-lg bg-orange-400 text-sm font-black text-black transition hover:bg-orange-300"
+                >
+                  Continuar
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
+
         {!storeOpen && (
           <div className="mb-3 shrink-0 rounded-lg border border-red-300/35 bg-red-500/20 px-4 py-3 shadow-[0_18px_48px_rgba(239,68,68,0.18)]">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -921,278 +1868,571 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 Loja fechada
               </strong>
               <span className="text-xs font-bold text-red-100/75">
-                O cardapio deve bloquear novos pedidos enquanto este estado estiver fechado.
+                O cardápio deve bloquear novos pedidos enquanto este estado estiver fechado.
               </span>
             </div>
           </div>
         )}
 
-        <header className={`shrink-0 rounded-lg border px-4 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl ${
-          storeOpen
-            ? "border-white/10 bg-[rgba(18,11,7,0.92)]"
-            : "border-red-300/30 bg-[rgba(75,14,14,0.92)]"
-        }`}>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <img
-                src="/LogoPitis.png"
-                alt="Pits Dog"
-                className="dashboard-logo shrink-0 drop-shadow-[0_0_18px_rgba(255,106,0,0.42)]"
-              />
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-300">
-                  Pits em acao
-                </p>
-                <h1 className="truncate text-2xl font-black text-white">Central de pedidos</h1>
-                <p className={`mt-0.5 truncate text-xs ${storeOpen ? "text-zinc-500" : "text-red-100/70"}`}>{notice}</p>
-              </div>
-            </div>
+        <DashboardHeader
+          activePanel={activePanel}
+          backendReady={backendReady}
+          connectionStatus={connectionStatus}
+          isSyncing={isSyncing}
+          localPanelSettings={localPanelSettings}
+          navigationItems={navigationItems}
+          notice={notice}
+          onActivateSound={orderSound.activateSound}
+          onLogout={onLogout}
+          onNotice={showNotice}
+          onPreviewSound={orderSound.previewSound}
+          onShowPanel={(panel) => showPanel(panel as MainPanel)}
+          onSoundModeChange={setSoundModeId}
+          onToggleStore={updateStoreStatus}
+          orderSoundNeedsActivation={orderSound.needsActivation}
+          setLocalPanelSettings={setLocalPanelSettings}
+          setSoundEnabled={setSoundEnabled}
+          setStoreOpen={setStoreOpen}
+          soundEnabled={soundEnabled}
+          soundModeId={soundModeId}
+          soundModes={newOrderSoundModes}
+          storeOpen={storeOpen}
+        />
 
-            <nav className="grid gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1 sm:grid-cols-2 xl:min-w-[560px] xl:grid-cols-4" aria-label="Navegacao principal">
-              {navigationItems.map((item) => {
-                const Icon = item.icon
-                const isActive = activePanel === item.value
+        {showingOrdersPanel && (
+          <OrderMetrics
+            activeStatusFilter={activeStatusFilter}
+            cashOrdersCount={cashOrders.length}
+            menuSignal={menuSignal}
+            metrics={metrics}
+            onMetricClick={(status, label) => {
+              setActiveStatusFilter(status as StatusFilter)
+              showPanel("pedidos")
+              showNotice(status === "todos" ? "Mostrando todos os pedidos." : `Filtro aplicado: ${label}.`)
+            }}
+            syncClock={syncClock}
+          />
+        )}
 
-                return (
+        {isEditing && draft && selectedOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm">
+            <section className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-orange-300/25 bg-[#100b08] shadow-[0_28px_90px_rgba(0,0,0,0.55)]">
+              <header className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-orange-400/[0.08] p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">
+                    Editar pedido #{selectedOrder.id}
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black text-white">{draft.customer || selectedOrder.customer}</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <button
-                    key={item.value}
                     type="button"
-                    onClick={() => showPanel(item.value)}
-                    className={`flex min-h-14 items-center gap-3 rounded-lg px-3 text-left transition ${
-                      isActive
-                        ? "bg-orange-400 text-black shadow-[0_14px_32px_rgba(255,106,0,0.22)]"
-                        : "text-zinc-300 hover:bg-white/[0.07] hover:text-white"
-                    }`}
+                    onClick={saveEdit}
+                    disabled={selectedOrderIsUpdating}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300 disabled:cursor-wait disabled:opacity-60"
                   >
-                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
-                      isActive ? "bg-black/15" : "bg-white/[0.06]"
-                    }`}>
-                      <Icon size={17} />
-                    </span>
-                    <span className="min-w-0">
-                      <strong className="block text-sm font-black">{item.label}</strong>
-                      <span className={`block truncate text-[11px] font-bold ${isActive ? "text-black/65" : "text-zinc-500"}`}>
-                        {item.description}
-                      </span>
-                    </span>
+                    {selectedOrderIsUpdating ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                    {selectedOrderIsUpdating ? "Salvando..." : "Salvar alterações"}
                   </button>
-                )
-              })}
-            </nav>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-black ${
-                connectionStatus === "online"
-                  ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
-                  : connectionStatus === "offline"
-                    ? "border-red-300/25 bg-red-400/10 text-red-100"
-                    : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
-              }`}>
-                <span className={`h-2.5 w-2.5 rounded-full ${
-                  connectionStatus === "online"
-                    ? "bg-emerald-300"
-                    : connectionStatus === "offline"
-                      ? "bg-red-300"
-                      : "bg-cyan-300"
-                }`} />
-                {connectionLabel}
-              </span>
-              {soundEnabled && orderSound.needsActivation && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await orderSound.activateSound()
-                    setNotice("Som de pedidos ativado neste navegador.")
-                  }}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-                >
-                  <Volume2 size={15} />
-                  Ativar som
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setSoundEnabled((value) => !value)
-                  setNotice(soundEnabled ? "Som de pedidos desativado." : "Som de pedidos ativado.")
-                }}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-black transition ${
-                  soundEnabled
-                    ? "border-orange-300/35 bg-orange-400/10 text-orange-100 hover:bg-orange-400/[0.18]"
-                    : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
-                }`}
-                aria-pressed={soundEnabled}
-              >
-                {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
-                Som de pedidos
-              </button>
-              <button
-                className={`h-9 rounded-lg px-3 text-xs font-black transition ${
-                  storeOpen ? "bg-red-500 text-white hover:bg-red-400" : "bg-emerald-400 text-black hover:bg-emerald-300"
-                }`}
-                type="button"
-                onClick={async () => {
-                  if (!backendReady) {
-                    setNotice("Conecte o backend para alterar o status real da loja.")
-                    return
-                  }
-
-                  const nextStoreOpen = !storeOpen
-
-                  const updated = await updateStoreStatus(nextStoreOpen)
-
-                  if (updated) {
-                    setStoreOpen(nextStoreOpen)
-                    setNotice(nextStoreOpen ? "Loja aberta." : "Loja fechada.")
-                  } else {
-                    setNotice("Nao foi possivel alterar a loja. Aguardando backend.")
-                  }
-                }}
-              >
-                {storeOpen ? "Fechar loja" : "Abrir loja"}
-              </button>
-              <a
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-                href="https://pits-dog-oficial.netlify.app/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink size={15} />
-                Cardapio
-              </a>
-              <button
-                className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-                type="button"
-                onClick={() => setNotice("Notificacoes conferidas.")}
-                aria-label="Notificacoes"
-              >
-                <Bell size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-                aria-label="Sair"
-              >
-                <LogOut size={18} />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <section className="mt-3 grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
-              {metrics.map((metric) => {
-                const Icon = metric.icon
-
-                return (
                   <button
-                    key={metric.label}
                     type="button"
                     onClick={() => {
-                      setActiveStatusFilter(metric.status)
-                      showPanel("pedidos")
-                      setNotice(metric.status === "todos" ? "Mostrando todos os pedidos." : `Filtro aplicado: ${metric.label}.`)
+                      setIsEditing(false)
+                      setDraft(null)
+                      showNotice(`Edição do pedido #${selectedOrder.id} cancelada.`)
                     }}
-                    className={`rounded-lg border p-2.5 text-left transition hover:bg-white/[0.06] ${
-                      activeStatusFilter === metric.status && metric.status !== "todos"
-                        ? "border-orange-300/60 bg-orange-400/[0.12]"
-                        : "border-white/10 bg-black/[0.18]"
-                    }`}
+                    disabled={selectedOrderIsUpdating}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-[9px] font-black uppercase leading-3 text-zinc-500">{metric.label}</span>
-                      <Icon className="shrink-0 text-zinc-400" size={14} />
-                    </div>
-                    <strong className="mt-1.5 block text-xl font-black text-white">{metric.value}</strong>
-                    <p className="mt-0.5 truncate text-[10px] text-zinc-500">{metric.detail}</p>
+                    <X size={15} />
+                    Fechar
                   </button>
-                )
-              })}
-            </div>
-          </div>
+                </div>
+              </header>
 
-          <div className="grid grid-cols-2 gap-3 rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3 sm:grid-cols-4 lg:grid-cols-2">
-            <div className="flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.12] px-3 py-2 text-left text-xs font-black text-cyan-100">
-              <Megaphone size={15} />
-              Operacao
-            </div>
-            <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-black ${menuSignal.className}`}>
-              <span className={`h-2.5 w-2.5 rounded-full ${menuSignal.dotClassName}`} />
-              {menuSignal.label}
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-black text-white">
-              <CheckCircle2 size={15} />
-              {lastSync ? `Sync ${lastSync}` : "Sincronizando"}
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-black text-white">
-              <DollarSign size={15} />
-              {cashOrders.length} pedidos no caixa
-            </div>
-          </div>
-        </section>
+              {selectedOrderIsUpdating && (
+                <div className="absolute inset-0 z-10 grid place-items-center bg-black/45 p-4 backdrop-blur-[2px]">
+                  <div className="grid justify-items-center gap-3 rounded-lg border border-orange-300/25 bg-[#100b08] px-5 py-4 text-center shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
+                    <Loader2 className="animate-spin text-orange-300" size={30} />
+                    <strong className="text-sm font-black text-white">Salvando pedido #{selectedOrder.id}...</strong>
+                  </div>
+                </div>
+              )}
 
-        {discountOrder && (
-          <div className="mt-3 shrink-0 rounded-lg border border-orange-300/25 bg-[rgba(36,22,11,0.96)] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.32)]">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">
-                  <ReceiptText size={15} />
-                  Bilhete de desconto
-                </p>
-                <h3 className="mt-1 text-lg font-black text-white">Pedido #{discountOrder.id} - {discountOrder.customer}</h3>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-[130px_120px_minmax(0,1fr)_auto_auto]">
-                <select
-                  value={discountMode}
-                  onChange={(event) => setDiscountMode(event.target.value as DiscountMode)}
-                  className="h-10 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none"
-                >
-                  <option value="valor">Valor fixo</option>
-                  <option value="percentual">Percentual</option>
-                </select>
-                <input
-                  type="number"
-                  min={0}
-                  value={discountValue}
-                  onChange={(event) => setDiscountValue(Number(event.target.value))}
-                  placeholder={discountMode === "valor" ? "5.00" : "10"}
-                  className="h-10 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                />
-                <input
-                  value={discountReason}
-                  onChange={(event) => setDiscountReason(event.target.value)}
-                  placeholder="Motivo do desconto"
-                  className="h-10 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                />
-                <button
-                  type="button"
-                  onClick={applyDiscount}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-                >
-                  <Save size={14} />
-                  Aplicar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDiscountOrderId(null)}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
-                >
-                  <X size={14} />
-                  Fechar
-                </button>
-              </div>
-            </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+	                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
+                      <div className="mb-4 flex items-center gap-2">
+                        <User size={16} className="text-orange-300" />
+                        <p className="text-sm font-black text-white">Cliente e tipo de pedido</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Cliente</span>
+                          <input
+                            value={draft.customer}
+                            onChange={(event) => setDraft({ ...draft, customer: event.target.value })}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Telefone</span>
+                          <input
+                            value={draft.phone}
+                            onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          />
+                        </label>
+	                        <label className="block">
+	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Tipo</span>
+	                          <select
+	                            value={draft.delivery}
+	                            onChange={(event) => updateDraftDelivery(event.target.value as DeliveryType)}
+	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                          >
+                            {deliveryOptions.map((delivery) => (
+                              <option key={delivery} value={delivery}>{delivery}</option>
+                            ))}
+                          </select>
+                        </label>
+	                        <label className="block">
+	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Pagamento</span>
+	                          <select
+	                            value={draft.payment}
+	                            onChange={(event) => {
+	                              const payment = event.target.value
+
+	                              setDraft({
+	                                ...draft,
+	                                changeFor: payment === "Dinheiro" ? draft.changeFor : 0,
+	                                needsChange: payment === "Dinheiro" ? draft.needsChange : false,
+	                                payment,
+	                              })
+	                            }}
+	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                          >
+	                            {paymentOptions.map((payment) => (
+	                              <option key={payment} value={payment}>{payment}</option>
+	                            ))}
+	                          </select>
+	                        </label>
+	                      </div>
+
+	                      {draft.payment === "Dinheiro" && (
+	                        <div className="mt-3 grid gap-3 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-3 md:grid-cols-[180px_minmax(0,1fr)]">
+	                          <label className="flex h-11 items-center gap-3 rounded-lg border border-white/10 bg-black/[0.22] px-3 text-sm font-black text-white">
+	                            <input
+	                              type="checkbox"
+	                              checked={draft.needsChange}
+	                              onChange={(event) => setDraft({ ...draft, changeFor: event.target.checked ? draft.changeFor : 0, needsChange: event.target.checked })}
+	                              className="h-4 w-4 accent-orange-400"
+	                            />
+	                            Precisa de troco
+	                          </label>
+	                          {draft.needsChange && (
+	                            <label className="block">
+	                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Troco para quanto?</span>
+	                              <input
+	                                type="number"
+		                                min={calculateDraftTotal(draft)}
+		                                value={numberInputValue(draft.changeFor)}
+	                                onChange={(event) => setDraft({ ...draft, changeFor: Number(event.target.value) })}
+	                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                              />
+	                            </label>
+	                          )}
+	                        </div>
+	                      )}
+
+                      <div className="mt-4 rounded-lg border border-orange-300/15 bg-orange-400/[0.06] p-3">
+                        {draft.delivery === "Delivery" && (
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block md:col-span-2">
+                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Endereço completo</span>
+                              <input
+                                value={draft.street}
+                                onChange={(event) => setDraft({ ...draft, street: event.target.value, address: event.target.value })}
+                                placeholder="Rua, número e ponto de referência"
+                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Bairro</span>
+                              <input
+                                value={draft.neighborhood}
+                                onChange={(event) => setDraft({ ...draft, neighborhood: event.target.value })}
+                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Taxa de entrega</span>
+                              <input
+                                type="number"
+                                min={0}
+	                                value={numberInputValue(draft.deliveryFee)}
+	                                onChange={(event) => {
+	                                  const deliveryFee = Number(event.target.value)
+
+	                                  setDraft({ ...draft, deliveryFee, total: calculateDraftTotal({ ...draft, deliveryFee }) })
+	                                }}
+                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                              />
+                            </label>
+	                            <label className="block md:col-span-2">
+	                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Complemento</span>
+	                              <input
+                                value={draft.complement}
+                                onChange={(event) => setDraft({ ...draft, complement: event.target.value })}
+                                placeholder="Apartamento, casa, referência..."
+	                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+	                              />
+	                            </label>
+	                            {activeCouriers.length > 0 ? (
+	                              <label className="block md:col-span-2">
+	                                <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Entregador</span>
+	                                <select
+	                                  value={draft.courierId}
+	                                  onChange={(event) => setDraft({ ...draft, courierId: event.target.value })}
+	                                  className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                                >
+	                                  <option value="">Selecionar motoboy</option>
+	                                  {activeCouriers.map((courier) => (
+	                                    <option key={courier.id} value={courier.id}>
+	                                      {courier.name}
+	                                    </option>
+	                                  ))}
+	                                </select>
+	                              </label>
+	                            ) : (
+	                              <div className="rounded-lg border border-dashed border-orange-300/20 bg-black/[0.18] p-3 text-sm font-bold text-orange-100/70 md:col-span-2">
+	                                Cadastre um motoboy no caixa para liberar a seleção de entregador.
+	                              </div>
+	                            )}
+	                          </div>
+	                        )}
+
+                        {draft.delivery === "Mesa" && (
+                          <label className="block">
+                            <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Número da mesa</span>
+                            <input
+                              value={draft.tableNumber}
+                              onChange={(event) => setDraft({ ...draft, tableNumber: event.target.value })}
+                              placeholder="Ex: 12"
+                              className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                            />
+                          </label>
+                        )}
+
+                        {draft.delivery === "Retirada" && (
+                          <label className="block">
+                            <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Identificação da retirada</span>
+                            <input
+                              value={draft.address}
+                              onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+                              placeholder="Retirada no balcão, nome de quem retira..."
+                              className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+	                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
+	                      <div className="mb-4 flex items-center justify-between gap-3">
+	                        <div>
+	                          <p className="text-sm font-black text-white">Adicionar produto</p>
+	                          <p className="mt-1 text-xs text-zinc-500">Escolha a categoria igual no site e mande o item para o pedido final.</p>
+	                        </div>
+	                      </div>
+
+	                      <div className="grid gap-2 md:grid-cols-[220px_minmax(0,1fr)_90px_auto]">
+	                        <label className="block">
+	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Categoria</span>
+	                          <select
+	                            value={draft.productCategoryToAddId}
+	                            onChange={(event) => setDraft({ ...draft, productCategoryToAddId: Number(event.target.value), productToAddId: 0 })}
+	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                          >
+	                            <option value={0}>Todas</option>
+	                            {activeMenuCategories.map((category) => (
+	                              <option key={category.id} value={category.id}>{category.nome}</option>
+	                            ))}
+	                          </select>
+	                        </label>
+	                        <label className="block">
+	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Produto</span>
+	                          <select
+	                            value={draft.productToAddId}
+	                            onChange={(event) => setDraft({ ...draft, productToAddId: Number(event.target.value) })}
+	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                          >
+	                            <option value={0}>Selecionar produto</option>
+	                            {draftProductsInCategory.map((product) => (
+	                              <option key={product.id} value={product.id}>
+	                                {product.nome} - {formatCurrency(product.preco)}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </label>
+	                        <label className="block">
+	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Qtd.</span>
+	                        <input
+	                          type="number"
+	                          min={1}
+		                          value={numberInputValue(draft.productToAddQuantity)}
+	                          onChange={(event) => setDraft({ ...draft, productToAddQuantity: Number(event.target.value) })}
+	                          className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                        />
+	                        </label>
+	                        <button
+	                          type="button"
+	                          onClick={addDraftProduct}
+	                          disabled={!draft.productToAddId}
+	                          className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+	                        >
+	                          <Plus size={14} />
+	                          Adicionar
+	                        </button>
+                        <input
+                          value={draft.productToAddNote}
+                          onChange={(event) => setDraft({ ...draft, productToAddNote: event.target.value })}
+                          placeholder="Observação do produto novo: sem cebola, gelado, trocar sabor..."
+	                          className="h-11 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60 md:col-span-4"
+	                        />
+	                      </div>
+	                    </div>
+                  </div>
+
+	                  <aside className="space-y-4">
+	                    <div className="rounded-lg border border-orange-300/25 bg-orange-400/[0.08] p-4">
+	                      <div className="flex items-center justify-between gap-3">
+	                        <div>
+	                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-200">Pedido final</p>
+	                          <p className="mt-1 text-xs text-orange-100/70">Edite ou remova qualquer item antes de salvar.</p>
+	                        </div>
+	                        <span className="rounded-lg bg-black/25 px-2 py-1 text-xs font-black text-white">
+	                          {draft.items.length} {draft.items.length === 1 ? "item" : "itens"}
+	                        </span>
+	                      </div>
+	                      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+	                        {draft.items.length === 0 && (
+	                          <div className="rounded-lg border border-dashed border-white/10 bg-black/[0.18] p-4 text-center text-sm font-bold text-orange-100/70">
+	                            Nenhum item no pedido.
+	                          </div>
+	                        )}
+	                        {draft.items.map((item, index) => (
+	                          <div key={`${index}-${item}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_40px]">
+	                            <input
+	                              value={item}
+	                              onChange={(event) => {
+	                                const nextItems = [...draft.items]
+
+	                                nextItems[index] = event.target.value
+	                                setDraft({ ...draft, items: nextItems })
+	                              }}
+	                              placeholder="Ex: 1x X-Bacon + cheddar (sem cebola)"
+	                              className="h-11 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+	                            />
+	                            <button
+	                              type="button"
+	                              onClick={() => setDraft({ ...draft, items: draft.items.filter((_, itemIndex) => itemIndex !== index) })}
+	                              className="grid h-11 place-items-center rounded-lg border border-red-300/25 bg-red-400/10 text-red-100 transition hover:bg-red-400/[0.18]"
+	                              aria-label="Remover item"
+	                            >
+	                              <X size={14} />
+	                            </button>
+	                          </div>
+	                        ))}
+	                      </div>
+	                    </div>
+
+	                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
+                      <p className="text-sm font-black text-white">Valores e desconto</p>
+                      <div className="mt-4 space-y-3">
+                        <label className="block">
+	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Subtotal do pedido</span>
+	                          <input
+	                            type="number"
+	                            min={0}
+		                            value={numberInputValue(draft.subtotal)}
+	                            onChange={(event) => {
+	                              const subtotal = Number(event.target.value)
+
+	                              setDraft({ ...draft, subtotal, total: calculateDraftTotal({ ...draft, subtotal }) })
+	                            }}
+	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+	                          />
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block">
+                            <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Desconto R$</span>
+                            <input
+                              type="number"
+                              min={0}
+	                              value={numberInputValue(draft.discount)}
+	                              onChange={(event) => {
+	                                const discount = Number(event.target.value)
+
+	                                setDraft({ ...draft, discount, discountPercent: 0, total: calculateDraftTotal({ ...draft, discount, discountPercent: 0 }) })
+	                              }}
+                              className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Desconto %</span>
+                            <input
+                              type="number"
+                              min={0}
+	                              value={numberInputValue(draft.discountPercent)}
+	                              onChange={(event) => {
+	                                const discountPercent = Math.min(Number(event.target.value), 35)
+
+	                                setDraft({ ...draft, discount: 0, discountPercent, total: calculateDraftTotal({ ...draft, discount: 0, discountPercent }) })
+	                              }}
+                              className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                            />
+                          </label>
+                        </div>
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Motivo do desconto</span>
+                          <input
+                            value={draft.discountReason}
+                            onChange={(event) => setDraft({ ...draft, discountReason: event.target.value })}
+                            placeholder="Cortesia, fidelidade, ajuste..."
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
+                      <p className="text-sm font-black text-white">Observações internas</p>
+                      <textarea
+                        value={draft.notes}
+                        onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
+                        placeholder="Recados para cozinha, atendimento ou entrega."
+                        className="mt-3 min-h-32 w-full resize-none rounded-lg border border-white/10 bg-black/[0.28] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                      />
+                    </div>
+
+	                    <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-4">
+	                      <p className="text-[10px] font-black uppercase text-emerald-100/70">Prévia do pedido</p>
+	                      <strong className="mt-2 block text-2xl text-emerald-100">{formatCurrency(calculateDraftTotal(draft))}</strong>
+	                      <p className="mt-2 text-xs font-bold text-emerald-100/70">{formatDraftAddress(draft)}</p>
+	                      {draft.delivery === "Delivery" && (
+	                        <p className="mt-2 text-xs font-bold text-emerald-100/70">
+	                          Entregador: {couriers.find((courier) => courier.id === draft.courierId)?.name ?? "não selecionado"}
+	                        </p>
+	                      )}
+	                      {draft.payment === "Dinheiro" && draft.needsChange && (
+	                        <p className="mt-2 text-xs font-bold text-emerald-100/70">
+	                          Troco para {formatCurrency(draft.changeFor || 0)}
+	                        </p>
+	                      )}
+	                    </div>
+                  </aside>
+	              </div>
+	            </div>
+
+	            <details className="mt-4 rounded-lg border border-white/10 bg-black/[0.12] p-3">
+	              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-white">
+	                <span>Configuração de motoboys</span>
+	                <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-black uppercase text-zinc-400">
+	                  {couriers.length} cadastrados
+	                </span>
+	              </summary>
+
+	              <div className="mt-4 border-t border-white/10 pt-4">
+	                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+	                  <div>
+	                    <p className="text-xs font-bold text-zinc-500">Área administrativa de entregadores.</p>
+	                  </div>
+	                  <div className="grid gap-2 sm:grid-cols-[220px_auto_auto]">
+	                    <input
+	                      value={courierDraft.name}
+	                      onChange={(event) => setCourierDraft({ name: event.target.value })}
+	                      placeholder="Nome do motoboy"
+	                      className="h-10 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+	                    />
+	                    <button
+	                      type="button"
+	                      onClick={addCourier}
+	                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+	                    >
+	                      <Plus size={14} />
+	                      {editingCourierId ? "Salvar" : "Cadastrar"}
+	                    </button>
+	                    {editingCourierId && (
+	                      <button
+	                        type="button"
+	                        onClick={() => {
+	                          setCourierDraft({ name: "" })
+	                          setEditingCourierId(null)
+	                        }}
+	                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+	                      >
+	                        <X size={14} />
+	                        Cancelar
+	                      </button>
+	                    )}
+	                  </div>
+	                </div>
+
+	                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+	                  {courierStats.length === 0 && (
+	                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-4 text-sm font-bold text-zinc-500 md:col-span-2 xl:col-span-4">
+	                      Nenhum motoboy cadastrado.
+	                    </div>
+	                  )}
+	                  {courierStats.map((courier) => (
+	                    <div key={courier.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+	                      <div className="flex items-start justify-between gap-3">
+	                        <div className="min-w-0">
+	                          <strong className="block truncate text-sm font-black text-white">{courier.name}</strong>
+	                          <p className="mt-1 truncate text-xs text-zinc-500">
+	                            {courier.ordersCount} {courier.ordersCount === 1 ? "entrega" : "entregas"}
+	                          </p>
+	                        </div>
+	                        <button
+	                          type="button"
+	                          onClick={() => setCouriers((currentCouriers) => currentCouriers.map((currentCourier) => (
+	                            currentCourier.id === courier.id ? { ...currentCourier, active: !currentCourier.active } : currentCourier
+	                          )))}
+	                          className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${
+	                            courier.active
+	                              ? "border border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+	                              : "border border-red-300/25 bg-red-400/10 text-red-100"
+	                          }`}
+	                        >
+	                          {courier.active ? "Ativo" : "Inativo"}
+	                        </button>
+	                      </div>
+	                      <div className="mt-3 flex flex-wrap gap-2">
+	                        <button
+	                          type="button"
+	                          onClick={() => editCourier(courier)}
+	                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-[11px] font-black text-white transition hover:bg-white/10"
+	                        >
+	                          <Edit3 size={13} />
+	                          Editar
+	                        </button>
+	                      </div>
+	                    </div>
+	                  ))}
+	                </div>
+	              </div>
+	            </details>
+	          </section>
           </div>
         )}
 
-        {menuPanelOpen && (
+        <MenuAdminPanel open={menuPanelOpen}>
           <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.92)] p-4">
             <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">
-                  Integracoes do cardapio
+                  Integrações do cardápio
                 </p>
                 <h2 className="text-xl font-black text-white">Produtos e disponibilidade</h2>
               </div>
@@ -1227,16 +2467,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
             {menuAdmin.status !== "online" && (
               <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.08] p-3 text-sm leading-6 text-cyan-50/80">
                 {menuAdmin.status === "not-configured"
-                  ? "Configure VITE_MENU_API_BASE_URL no admin e reinicie o servidor do Vite para liberar alteracoes reais do cardapio."
-                  : "O admin tem URL de backend configurada, mas nao conseguiu carregar o cardapio agora. Confira o console do navegador ou reinicie o servidor do Vite para recarregar o .env.local."}
+                  ? "Configure VITE_MENU_API_BASE_URL no admin e reinicie o servidor do Vite para liberar alterações reais do cardápio."
+                  : "O admin tem URL de backend configurada, mas não conseguiu carregar o cardápio agora. Confira o console do navegador ou reinicie o servidor do Vite para recarregar o .env.local."}
               </div>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
               {([
                 ["categorias", "Categorias", menuAdmin.categories.length],
-                ["produtos", "Produtos", menuAdmin.products.length],
-                ["adicionais", "Adicionais", menuAdmin.additionals.length],
+                ["produtos", "Produtos", visibleProducts.length],
+                ["adicionais", "Adicionais", 0], // Força 0 para limpeza manual, mude para menuAdmin.additionals.length se quiser ver os novos
               ] as Array<[MenuPanelSection, string, number]>).map(([value, label, count]) => (
                 <button
                   key={value}
@@ -1273,7 +2513,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   </label>
 
                   <label className="block">
-                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descricao</span>
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descrição</span>
                     <textarea
                       value={categoryDraft.descricao}
                       onChange={(event) => setCategoryDraft({ ...categoryDraft, descricao: event.target.value })}
@@ -1282,7 +2522,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     />
                   </label>
 
-                  <label className="block">
+                  <div className="block">
                     <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
                     <input
                       value={categoryDraft.imagem}
@@ -1290,13 +2530,23 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       placeholder="/Sobremesas/banner.jpeg"
                       className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
                     />
-                  </label>
+                    <label className="mt-2 inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                      <Upload size={14} />
+                      Escolher imagem
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => readImageFile(event, (image) => setCategoryDraft((currentDraft) => ({ ...currentDraft, imagem: image })))}
+                      />
+                    </label>
+                  </div>
 
                   <label className="block">
                     <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Ordem</span>
                     <input
                       type="number"
-                      value={categoryDraft.ordem}
+	                      value={numberInputValue(categoryDraft.ordem)}
                       onChange={(event) => setCategoryDraft({ ...categoryDraft, ordem: Number(event.target.value) })}
                       className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     />
@@ -1318,7 +2568,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     disabled={categorySaving}
                     className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Save size={15} />
+                    {categorySaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                     {categorySaving ? "Salvando..." : editingCategoryId ? "Salvar categoria" : "Adicionar categoria"}
                   </button>
 
@@ -1335,7 +2585,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
                     >
                       <X size={15} />
-                      Cancelar edicao
+                      Cancelar edição
                     </button>
                   )}
                 </div>
@@ -1352,7 +2602,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                   {menuAdmin.categories.length === 0 && (
                     <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                      Nenhuma categoria carregada do backend do cardapio.
+                      Nenhuma categoria carregada do backend do cardápio.
                     </div>
                   )}
 
@@ -1370,7 +2620,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                           </span>
                         </div>
                         <p className="mt-1 truncate text-xs text-zinc-500">
-                          Ordem {category.ordem} | {category.descricao || "Sem descricao"} | {category.imagem || "Sem imagem"}
+                          Ordem {category.ordem} | {category.descricao || "Sem descrição"} | {category.imagem || "Sem imagem"}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -1392,13 +2642,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
                           }`}
                         >
                           {category.ativo ? "Desativar" : "Ativar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeCategory(category)}
-                          className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Excluir
                         </button>
                       </div>
                     </div>
@@ -1428,20 +2671,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Destaque / subtitulo</span>
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Selo do produto</span>
                       <input
                         value={productDraft.highlight}
                         onChange={(event) => setProductDraft({ ...productDraft, highlight: event.target.value })}
-                        placeholder="Ex: Da casa, Mais vendido, Novo"
+                        placeholder="Ex: Mais pedido, Da casa, Novo"
                         className="h-10 w-full rounded-lg border border-orange-300/20 bg-orange-400/[0.06] px-3 text-sm text-white outline-none placeholder:text-orange-100/35 focus:border-orange-300/60 disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       <p className="mt-1 text-[11px] font-bold text-orange-100/55">
-                        Aparece abaixo do nome do produto no cardapio.
+                        Aparece como etiqueta laranja abaixo da descrição, igual "MAIS PEDIDO".
                       </p>
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descricao</span>
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descrição</span>
                       <textarea
                         value={productDraft.descricao}
                         onChange={(event) => setProductDraft({ ...productDraft, descricao: event.target.value })}
@@ -1452,10 +2695,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
                     <div className="grid grid-cols-2 gap-3">
                       <label className="block">
-                        <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preco</span>
+                        <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preço</span>
                         <input
                           type="number"
-                          value={productDraft.preco}
+	                          value={numberInputValue(productDraft.preco)}
                           onChange={(event) => setProductDraft({ ...productDraft, preco: Number(event.target.value) })}
                           className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
                         />
@@ -1477,7 +2720,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       </label>
                     </div>
 
-                    <label className="block">
+                    <div className="block">
                       <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
                       <input
                         value={productDraft.imagem}
@@ -1485,7 +2728,17 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         placeholder="https://..."
                         className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
                       />
-                    </label>
+                      <label className="mt-2 inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                        <Upload size={14} />
+                        Escolher imagem
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) => readImageFile(event, (image) => setProductDraft((currentDraft) => ({ ...currentDraft, imagem: image })))}
+                        />
+                      </label>
+                    </div>
 
                     <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
                       Produto ativo
@@ -1497,14 +2750,24 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       />
                     </label>
 
-                    <button
-                      type="button"
-                      onClick={saveProduct}
-                      disabled={!productDraft.nome.trim() || !productDraft.categoriaId}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Save size={15} />
-                      {editingProductId ? "Salvar produto" : "Adicionar produto"}
+                    <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                      Permite adicionais
+                      <input
+                        type="checkbox"
+                        checked={productDraft.permiteAdicionais}
+                        onChange={(event) => setProductDraft({ ...productDraft, permiteAdicionais: event.target.checked })}
+                        className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </label>
+
+                  <button
+                    type="button"
+                    onClick={saveProduct}
+                    disabled={productSaving || !productDraft.nome.trim() || !productDraft.categoriaId}
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                      {productSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                      {productSaving ? "Salvando..." : editingProductId ? "Salvar produto" : "Adicionar produto"}
                     </button>
 
                     {editingProductId && (
@@ -1514,7 +2777,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
                       >
                         <X size={15} />
-                        Cancelar edicao
+                        Cancelar edição
                       </button>
                     )}
                   </div>
@@ -1524,7 +2787,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                       <p className="text-sm font-black text-white">Produtos do site</p>
-                      <p className="mt-1 text-xs text-zinc-500">Busca e categoria funcionam juntas para encontrar itens rapido.</p>
+                      <p className="mt-1 text-xs text-zinc-500">Busca e categoria funcionam juntas para encontrar itens rápido.</p>
                     </div>
                     <span className="rounded-full border border-orange-300/25 bg-orange-400/10 px-3 py-1 text-xs font-black text-orange-100">
                       {visibleProducts.length} de {menuAdmin.products.length}
@@ -1538,7 +2801,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         value={productSearch}
                         onChange={(event) => setProductSearch(event.target.value)}
                         className="w-full bg-transparent text-white outline-none placeholder:text-zinc-500"
-                        placeholder="Pesquisar por nome, descricao ou destaque"
+                        placeholder="Pesquisar por nome, descrição ou destaque"
                       />
                     </label>
                     <select
@@ -1586,7 +2849,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <div className="mt-3 max-h-[420px] space-y-3 overflow-y-auto pr-1">
                     {menuAdmin.products.length === 0 && (
                       <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                        Nenhum produto carregado do backend do cardapio.
+                        Nenhum produto carregado do backend do cardápio.
                       </div>
                     )}
 
@@ -1632,9 +2895,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                       {product.ativo ? "Ativo" : "Inativo"}
                                     </span>
                                     <span className="text-xs font-black text-orange-200">R$ {product.preco}</span>
+                                    {product.permiteAdicionais && (
+                                      <span className="rounded-full border border-orange-300/25 bg-orange-400/10 px-2 py-0.5 text-[10px] font-black uppercase text-orange-100">
+                                        Adicionais
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">
-                                    {product.descricao || "Sem descricao"} | {product.imageUrl ?? product.imagem ?? "Sem imagem"}
+                                    {product.descricao || "Sem descrição"} | {product.imageUrl ?? product.imagem ?? "Sem imagem"}
                                   </p>
                                 </div>
                                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -1646,9 +2914,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                     product.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
                                   }`}>
                                     {product.ativo ? "Desativar" : "Ativar"}
-                                  </button>
-                                  <button type="button" onClick={() => removeProduct(product)} className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50">
-                                    Excluir
                                   </button>
                                 </div>
                               </div>
@@ -1676,25 +2941,25 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <input value={additionalDraft.nome} onChange={(event) => setAdditionalDraft({ ...additionalDraft, nome: event.target.value })} placeholder="Ex: Bacon" className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50" />
                     </label>
                     <label className="block">
-                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descricao</span>
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descrição</span>
                       <textarea value={additionalDraft.descricao} onChange={(event) => setAdditionalDraft({ ...additionalDraft, descricao: event.target.value })} placeholder="Adicional de bacon crocante" className="min-h-20 w-full resize-none rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50" />
                     </label>
                     <label className="block">
-                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preco</span>
-                      <input type="number" value={additionalDraft.preco} onChange={(event) => setAdditionalDraft({ ...additionalDraft, preco: Number(event.target.value) })} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50" />
+	                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preço</span>
+	                      <input type="number" value={numberInputValue(additionalDraft.preco)} onChange={(event) => setAdditionalDraft({ ...additionalDraft, preco: Number(event.target.value) })} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50" />
                     </label>
                     <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
                       Adicional ativo
                       <input type="checkbox" checked={additionalDraft.ativo} onChange={(event) => setAdditionalDraft({ ...additionalDraft, ativo: event.target.checked })} className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50" />
                     </label>
-                    <button type="button" onClick={saveAdditional} disabled={!additionalDraft.nome.trim()} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50">
-                      <Save size={15} />
-                      {editingAdditionalId ? "Salvar adicional" : "Adicionar adicional"}
+                    <button type="button" onClick={saveAdditional} disabled={additionalSaving || !additionalDraft.nome.trim()} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50">
+                      {additionalSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                      {additionalSaving ? "Salvando..." : editingAdditionalId ? "Salvar adicional" : "Adicionar adicional"}
                     </button>
                     {editingAdditionalId && (
                       <button type="button" onClick={cancelAdditionalEdit} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                         <X size={15} />
-                        Cancelar edicao
+                        Cancelar edição
                       </button>
                     )}
                   </div>
@@ -1702,12 +2967,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
                 <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
                   <p className="text-sm font-black text-white">Adicionais do site</p>
-                  <p className="mt-1 text-xs text-zinc-500">O cliente escolhe estes adicionais ao montar o item no cardapio.</p>
+                  <p className="mt-1 text-xs text-zinc-500">O cliente escolhe estes adicionais ao montar o item no cardápio.</p>
 
                   <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                     {menuAdmin.additionals.length === 0 && (
                       <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                        Nenhum adicional carregado do backend do cardapio.
+                        Nenhum adicional carregado do backend do cardápio.
                       </div>
                     )}
 
@@ -1723,7 +2988,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                             </span>
                             <span className="text-xs font-black text-orange-200">R$ {additional.preco}</span>
                           </div>
-                          <p className="mt-1 truncate text-xs text-zinc-500">{additional.descricao || "Sem descricao"}</p>
+                          <p className="mt-1 truncate text-xs text-zinc-500">{additional.descricao || "Sem descrição"}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <button type="button" onClick={() => editAdditional(additional)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1735,9 +3000,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
                           }`}>
                             {additional.ativo ? "Desativar" : "Ativar"}
                           </button>
-                          <button type="button" onClick={() => removeAdditional(additional)} className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50">
-                            Excluir
-                          </button>
                         </div>
                       </div>
                     ))}
@@ -1746,22 +3008,256 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </div>
             )}
           </section>
-        )}
+        </MenuAdminPanel>
 
-        {cashPanelOpen && (
+        {zapPanelOpen && (
           <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.92)] p-4">
             <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">
-                  Caixa e relatorios
+                  Integração WhatsApp
                 </p>
-                <h2 className="text-xl font-black text-white">Fechamento diario</h2>
+                <h2 className="text-xl font-black text-white">Bot do Zap</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void refreshWhatsAppBotStatus(true)}
+                  disabled={whatsAppBotLoading}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw size={15} className={whatsAppBotLoading ? "animate-spin" : ""} />
+                  Atualizar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showPanel("pedidos")}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                >
+                  <LayoutDashboard size={15} />
+                  Voltar aos pedidos
+                </button>
+              </div>
+            </div>
+
+            {whatsAppBotError && (
+              <div className="mt-3 rounded-lg border border-red-300/25 bg-red-400/10 p-3 text-sm font-bold leading-6 text-red-100">
+                {whatsAppBotError}
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+              <div className="space-y-4">
+                <article className={`rounded-lg border p-4 ${
+                  whatsAppBotStatus?.connected
+                    ? "border-emerald-300/25 bg-emerald-400/10"
+                    : "border-orange-300/25 bg-orange-400/[0.08]"
+                }`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Status</p>
+                      <strong className={`mt-1 block text-2xl font-black ${
+                        whatsAppBotStatus?.connected ? "text-emerald-100" : "text-orange-100"
+                      }`}>
+                        {whatsAppBotStatus?.connected ? "Conectado" : "Aguardando conexão"}
+                      </strong>
+                    </div>
+                    <span className={`grid h-12 w-12 place-items-center rounded-lg ${
+                      whatsAppBotStatus?.connected ? "bg-emerald-400 text-black" : "bg-orange-400 text-black"
+                    }`}>
+                      <MessageCircle size={24} />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm font-bold leading-6 text-zinc-300">
+                    {whatsAppBotStatus?.connected
+                      ? "Mensagens automáticas de pedido podem ser enviadas pelo bot."
+                      : "Abra o WhatsApp no celular da loja e escaneie o QR Code quando ele aparecer."}
+                  </p>
+                </article>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <article className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                    <p className="text-[10px] font-black uppercase text-zinc-500">Fila</p>
+                    <strong className="mt-2 block text-2xl font-black text-white">
+                      {whatsAppBotStatus?.queuedMessages ?? 0}
+                    </strong>
+                  </article>
+                  <article className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                    <p className="text-[10px] font-black uppercase text-zinc-500">Socket</p>
+                    <strong className="mt-2 block text-lg font-black text-white">
+                      {whatsAppBotStatus?.hasSocket ? "Ativo" : "Parado"}
+                    </strong>
+                  </article>
+                </div>
+
+                <article className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-300">Serviço</p>
+                  <label className="mt-2 block text-xs font-black text-zinc-300" htmlFor="whatsapp-bot-url">
+                    URL do bot no Render
+                  </label>
+                  <input
+                    id="whatsapp-bot-url"
+                    value={whatsAppConnectionSettings.botUrl}
+                    onChange={(event) => setWhatsAppConnectionSettings((currentSettings) => ({
+                      ...currentSettings,
+                      botUrl: event.target.value,
+                    }))}
+                    placeholder="https://seu-bot.onrender.com"
+                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                  />
+                  <label className="mt-3 block text-xs font-black text-zinc-300" htmlFor="whatsapp-admin-pin">
+                    PIN administrativo do bot
+                  </label>
+                  <input
+                    id="whatsapp-admin-pin"
+                    value={whatsAppConnectionSettings.adminPin}
+                    onChange={(event) => setWhatsAppConnectionSettings((currentSettings) => ({
+                      ...currentSettings,
+                      adminPin: event.target.value,
+                    }))}
+                    placeholder="Mesmo ADMIN_PIN configurado no Render"
+                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                  />
+                  <p className="mt-1 text-[11px] font-bold leading-5 text-zinc-500">
+                    Esse PIN precisa ser igual ao `ADMIN_PIN` nas variáveis de ambiente do Render. Se no Render não existir `ADMIN_PIN`, pode deixar vazio.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={saveWhatsAppConnectionSettings}
+                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+                  >
+                    <Save size={15} />
+                    Salvar conexão
+                  </button>
+                </article>
+                <article className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Teste de envio</p>
+                  <h3 className="mt-1 text-lg font-black text-white">Validar mensagem</h3>
+                  <p className="mt-1 text-xs font-bold leading-5 text-zinc-500">
+                    Usa a mesma conexão, o mesmo PIN e o mesmo WhatsApp dos pedidos.
+                  </p>
+                  <label className="mt-3 block text-xs font-black text-zinc-300" htmlFor="whatsapp-test-phone">
+                    Telefone com DDD
+                  </label>
+                  <input
+                    id="whatsapp-test-phone"
+                    value={whatsAppTestPhone}
+                    onChange={(event) => setWhatsAppTestPhone(event.target.value)}
+                    placeholder="Ex: 91999999999"
+                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                  />
+                  <button
+                    type="button"
+                    disabled={whatsAppTestSending}
+                    onClick={() => void testWhatsAppMessage()}
+                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.18] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <MessageCircle size={15} />
+                    {whatsAppTestSending ? "Enviando..." : "Enviar teste"}
+                  </button>
+                </article>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">QR Code</p>
+                    <h3 className="text-lg font-black text-white">Conectar WhatsApp da loja</h3>
+                  </div>
+                  <span className={`inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 text-[11px] font-black uppercase ${
+                    whatsAppBotStatus?.connected
+                      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+                      : whatsAppBotStatus?.qrCodeDataUrl
+                        ? "border-orange-300/25 bg-orange-400/10 text-orange-100"
+                        : "border-white/10 bg-white/5 text-zinc-400"
+                  }`}>
+                    <span className={`h-2 w-2 rounded-full ${
+                      whatsAppBotStatus?.connected
+                        ? "bg-emerald-300"
+                        : whatsAppBotStatus?.qrCodeDataUrl
+                          ? "bg-orange-300"
+                          : "bg-zinc-500"
+                    }`} />
+                    {whatsAppBotStatus?.connected ? "Conectado" : whatsAppBotStatus?.qrCodeDataUrl ? "Escanear" : "Sem QR"}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid min-h-[360px] place-items-center rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-4">
+                  {whatsAppBotStatus?.connected ? (
+                    <div className="text-center">
+                      <CheckCircle2 className="mx-auto text-emerald-300" size={58} />
+                      <h3 className="mt-4 text-xl font-black text-white">WhatsApp conectado</h3>
+                      <p className="mt-2 max-w-md text-sm leading-6 text-zinc-500">
+                        O bot está pronto para mandar mensagens automáticas quando o cliente pedir e quando o status mudar.
+                      </p>
+                    </div>
+                  ) : whatsAppBotStatus?.qrCodeDataUrl ? (
+                    <div className="text-center">
+                      <div className="mx-auto w-full max-w-[280px] rounded-lg bg-white p-3 shadow-[0_22px_60px_rgba(0,0,0,0.32)]">
+                        <img
+                          src={whatsAppBotStatus.qrCodeDataUrl}
+                          alt="QR Code do WhatsApp"
+                          className="h-auto w-full"
+                        />
+                      </div>
+                      <p className="mt-4 text-sm font-bold leading-6 text-zinc-300">
+                        No celular da loja: WhatsApp Web, conectar aparelho, escanear este código.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <QrCode className="mx-auto text-zinc-500" size={58} />
+                      <h3 className="mt-4 text-xl font-black text-white">QR ainda não disponível</h3>
+                      <p className="mt-2 max-w-md text-sm leading-6 text-zinc-500">
+                        Inicie ou reinicie o bot WhatsApp. Quando ele gerar o código, esta tela atualiza sozinha.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <article className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                    <p className="text-[10px] font-black uppercase text-zinc-500">Último QR</p>
+                    <strong className="mt-1 block text-sm text-white">
+                      {whatsAppBotStatus?.lastQrAt
+                        ? new Date(whatsAppBotStatus.lastQrAt).toLocaleString("pt-BR")
+                        : "Ainda não gerado"}
+                    </strong>
+                  </article>
+                  <article className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                    <p className="text-[10px] font-black uppercase text-zinc-500">Sessão</p>
+                    <strong className="mt-1 block truncate text-sm text-white">
+                      {whatsAppBotStatus?.sessionDir ?? "Aguardando bot"}
+                    </strong>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <CashPanel open={cashPanelOpen}>
+          <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.92)] p-4">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">
+                  Caixa e relatórios
+                </p>
+                <h2 className="text-xl font-black text-white">Fechamento por período</h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">De</span>
                 <input
                   type="date"
-                  value={reportDate}
-                  onChange={(event) => setReportDate(event.target.value)}
+                  value={reportStartDate}
+                  onChange={(event) => setReportStartDate(event.target.value)}
+                  className="h-9 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-xs font-black text-white outline-none"
+                />
+                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">Até</span>
+                <input
+                  type="date"
+                  value={reportEndDate}
+                  onChange={(event) => setReportEndDate(event.target.value)}
                   className="h-9 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-xs font-black text-white outline-none"
                 />
                 <button
@@ -1770,14 +3266,77 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   className="inline-flex h-9 items-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
                 >
                   <Download size={15} />
-                  Exportar CSV
+                  Exportar período
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = getLocalDateInputValue()
+                    setReportStartDate(today)
+                    setReportEndDate(today)
+                  }}
+                  className="inline-flex h-9 items-center rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const range = getCurrentMonthRange()
+                    setReportStartDate(range.start)
+                    setReportEndDate(range.end)
+                  }}
+                  className="inline-flex h-9 items-center rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                >
+                  Este mês
                 </button>
               </div>
             </div>
 
+            <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-400/[0.07] p-3">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">PIX do estabelecimento</p>
+                  <label className="mt-2 block text-xs font-black text-zinc-300" htmlFor="pix-key">
+                    Chave PIX enviada pelo bot
+                  </label>
+                  <input
+                    id="pix-key"
+                    value={pixSettings.pixKey ?? ""}
+                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixKey: event.target.value }))}
+                    placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
+                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/60"
+                  />
+                </div>
+                <div className="w-full xl:w-64">
+                  <label className="block text-xs font-black text-zinc-300" htmlFor="pix-receiver">
+                    Nome do recebedor
+                  </label>
+                  <input
+                    id="pix-receiver"
+                    value={pixSettings.pixReceiverName ?? "Pedrinho francisco ferreira araujo - stone ip S.A."}
+                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixReceiverName: event.target.value }))}
+                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none focus:border-emerald-300/60"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={pixSettingsSaving}
+                  onClick={() => void savePixSettings()}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Save size={15} />
+                  {pixSettingsSaving ? "Salvando..." : "Salvar PIX"}
+                </button>
+              </div>
+              {pixSettingsFeedback && (
+                <p className="mt-2 text-xs font-bold text-emerald-100/80">{pixSettingsFeedback}</p>
+              )}
+            </div>
+
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <article className="rounded-lg border border-emerald-300/20 bg-emerald-400/[0.08] p-3">
-                <p className="text-[10px] font-black uppercase text-emerald-100/70">Faturamento finalizado</p>
+                <p className="text-[10px] font-black uppercase text-emerald-100/70">Entrou finalizado</p>
                 <strong className="mt-2 block text-2xl font-black text-emerald-100">{formatCurrency(completedRevenue)}</strong>
               </article>
               <article className="rounded-lg border border-orange-300/20 bg-orange-400/[0.08] p-3">
@@ -1785,30 +3344,119 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <strong className="mt-2 block text-2xl font-black text-orange-100">{formatCurrency(openRevenue)}</strong>
               </article>
               <article className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
-                <p className="text-[10px] font-black uppercase text-zinc-500">Pedidos no caixa</p>
+                <p className="text-[10px] font-black uppercase text-zinc-500">Pedidos no período</p>
                 <strong className="mt-2 block text-2xl font-black text-white">{reportOrders.length}</strong>
               </article>
               <article className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
-                <p className="text-[10px] font-black uppercase text-zinc-500">Ticket medio real</p>
+                <p className="text-[10px] font-black uppercase text-zinc-500">Ticket médio</p>
                 <strong className="mt-2 block text-2xl font-black text-white">{formatCurrency(averageTicket)}</strong>
               </article>
             </div>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                ["Pix", paymentSummary.pix],
+	            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+	              {[
+	                ["Pix", paymentSummary.pix],
                 ["Dinheiro", paymentSummary.dinheiro],
-                ["Cartao", paymentSummary.cartao],
+                ["Cartão", paymentSummary.cartao],
                 ["Outros", paymentSummary.outros],
               ].map(([label, value]) => (
                 <article key={label} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
                   <p className="text-[10px] font-black uppercase text-zinc-500">{label}</p>
                   <strong className="mt-1 block text-lg font-black text-white">{formatCurrency(Number(value))}</strong>
                 </article>
-              ))}
-            </div>
+	              ))}
+	            </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <details className="mt-4 rounded-lg border border-white/10 bg-black/[0.14] p-3">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-white">
+                <span>Entregas e motoboys</span>
+                <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-black uppercase text-zinc-400">
+                  {reportDeliveryOrders.length} entregas
+                </span>
+              </summary>
+
+              <div className="mt-3 grid gap-3 border-t border-white/10 pt-3 xl:grid-cols-[280px_minmax(0,1fr)]">
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-300">Motoboys</p>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={courierDraft.name}
+                      onChange={(event) => setCourierDraft({ name: event.target.value })}
+                      placeholder="Nome"
+                      className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-xs font-bold text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                    />
+                    <button
+                      type="button"
+                      onClick={addCourier}
+                      className="h-9 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+                    >
+                      {editingCourierId ? "Salvar" : "Add"}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {couriers.length === 0 && (
+                      <span className="text-xs font-bold text-zinc-500">Nenhum motoboy cadastrado.</span>
+                    )}
+                    {couriers.map((courier) => (
+                      <button
+                        key={courier.id}
+                        type="button"
+                        onClick={() => setCouriers((currentCouriers) => currentCouriers.map((currentCourier) => (
+                          currentCourier.id === courier.id ? { ...currentCourier, active: !currentCourier.active } : currentCourier
+                        )))}
+                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-black transition ${
+                          courier.active
+                            ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+                            : "border-red-300/25 bg-red-400/10 text-red-100"
+                        }`}
+                        title="Clique para ativar ou pausar"
+                      >
+                        {courier.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-300">Pedidos delivery</p>
+                    <span className="text-[11px] font-bold text-zinc-500">{reportPeriodLabel}</span>
+                  </div>
+
+                  <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
+                    {reportDeliveryOrders.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-white/10 bg-black/[0.18] p-4 text-center text-xs font-bold text-zinc-500">
+                        Nenhuma entrega para selecionar motoboy.
+                      </div>
+                    )}
+
+                    {reportDeliveryOrders.map((order) => (
+                      <div key={`courier-${order.id}`} className="grid gap-2 rounded-lg border border-white/10 bg-black/[0.18] p-2 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
+                        <div className="min-w-0">
+                          <strong className="block truncate text-sm font-black text-white">#{order.id} {order.customer}</strong>
+                          <p className="mt-0.5 truncate text-xs text-zinc-500">{order.address || "Sem endereço"}</p>
+                        </div>
+                        <select
+                          value={order.courierId ?? ""}
+                          onChange={(event) => void assignCourierToOrder(order, event.target.value)}
+                          className="h-9 rounded-lg border border-white/10 bg-black/[0.28] px-2 text-xs font-black text-white outline-none focus:border-orange-300/60"
+                        >
+                          <option value="">Sem motoboy</option>
+                          {activeCouriers.map((courier) => (
+                            <option key={courier.id} value={courier.id}>
+                              {courier.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </details>
+
+	            <div className="mt-4 flex flex-wrap gap-2">
               {(Object.keys(cashTabLabels) as CashTab[]).map((tab) => (
                 <button
                   key={tab}
@@ -1830,7 +3478,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-black text-white">{cashTabLabels[cashTab]}</p>
-                      <p className="mt-1 text-xs text-zinc-500">Produtos mais vendidos no dia selecionado.</p>
+                    <p className="mt-1 text-xs text-zinc-500">Produtos mais vendidos no período selecionado.</p>
                   </div>
                   <span className="text-xs font-black text-orange-200">{visibleCashItems.reduce((total, item) => total + item.quantity, 0)} unidades</span>
                 </div>
@@ -1838,7 +3486,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
                   {visibleCashItems.length === 0 && (
                     <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                      Nenhuma saida encontrada nessa aba.
+                      Nenhuma saída encontrada nessa aba.
                     </div>
                   )}
 
@@ -1862,7 +3510,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
                   {reportOrders.length === 0 && (
                     <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                      Nenhum pedido encontrado para esta data.
+                      Nenhum pedido encontrado para este período.
                     </div>
                   )}
 
@@ -1870,7 +3518,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     <div key={order.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <strong className="text-sm font-black text-white">Pedido #{order.id}</strong>
-                        <span className="text-xs font-black text-orange-200">{formatCurrency(order.total)}</span>
+	                        <span className="text-xs font-black text-orange-200">{formatCurrency(calculateOrderTotal(order))}</span>
                       </div>
                       <p className="mt-1 text-xs text-zinc-500">
                         {statusLabels[order.status] ?? order.status} | {order.delivery} | {order.payment}
@@ -1881,16 +3529,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </div>
             </div>
           </section>
-        )}
+        </CashPanel>
 
-        {clientsPanelOpen && (
+        <ClientsPanel open={clientsPanelOpen}>
           <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.92)] p-4">
             <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">
                   Clientes
                 </p>
-                <h2 className="text-xl font-black text-white">Historico e recorrencia</h2>
+	                <h2 className="text-xl font-black text-white">Histórico e recorrência</h2>
               </div>
               <span className="inline-flex h-9 items-center gap-2 rounded-lg border border-orange-300/25 bg-orange-400/10 px-3 text-xs font-black text-orange-100">
                 <Users size={15} />
@@ -1902,9 +3550,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <div className="mt-4 grid min-h-[360px] place-items-center rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-8 text-center">
                 <div>
                   <Users className="mx-auto text-zinc-500" size={44} />
-                  <h3 className="mt-4 text-lg font-black text-white">Ainda nao ha clientes no painel</h3>
+	                  <h3 className="mt-4 text-lg font-black text-white">Ainda não há clientes no painel</h3>
                   <p className="mt-2 text-sm leading-6 text-zinc-500">
-                    Quando os pedidos chegarem, o historico por telefone aparece aqui automaticamente.
+                    Quando os pedidos chegarem, o histórico por telefone aparece aqui automaticamente.
                   </p>
                 </div>
               </div>
@@ -1962,11 +3610,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
                         <div className="flex items-center gap-2 text-sm font-black text-white">
                           <MapPin size={15} className="text-orange-300" />
-                          Enderecos salvos
+                          Endereços salvos
                         </div>
                         <div className="mt-3 space-y-2">
                           {selectedClient.addresses.length === 0 && (
-                            <p className="text-sm font-bold text-zinc-500">Nenhum endereco salvo.</p>
+                            <p className="text-sm font-bold text-zinc-500">Nenhum endereço salvo.</p>
                           )}
                           {selectedClient.addresses.map((address) => (
                             <p key={address} className="rounded-lg border border-white/10 bg-black/[0.18] p-3 text-sm text-zinc-200">
@@ -1979,7 +3627,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
                         <div className="flex items-center gap-2 text-sm font-black text-white">
                           <MessageSquareText size={15} className="text-orange-300" />
-                          Observacoes internas
+                          Observações internas
                         </div>
                         <textarea
                           value={clientNotes[selectedClient.key] ?? ""}
@@ -1991,7 +3639,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     </div>
 
                     <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                      <p className="text-sm font-black text-white">Historico de pedidos</p>
+	                      <p className="text-sm font-black text-white">Histórico de pedidos</p>
                       <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                         {selectedClient.orders.map((order) => (
                           <div key={`${selectedClient.key}-${order.id}`} className="flex flex-col gap-2 rounded-lg border border-white/10 bg-black/[0.18] p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1999,7 +3647,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                               <strong className="text-sm font-black text-white">Pedido #{order.id}</strong>
                               <p className="mt-1 text-xs text-zinc-500">{order.time} | {order.delivery} | {order.payment}</p>
                             </div>
-                            <span className="text-xs font-black text-orange-200">{formatCurrency(order.total)}</span>
+	                            <span className="text-xs font-black text-orange-200">{formatCurrency(calculateOrderTotal(order))}</span>
                           </div>
                         ))}
                       </div>
@@ -2009,117 +3657,41 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </div>
             )}
           </section>
-        )}
+        </ClientsPanel>
 
-        {!menuPanelOpen && !cashPanelOpen && !clientsPanelOpen && (
-        <main className="mt-3 grid min-h-0 flex-1 gap-3 overflow-hidden xl:grid-cols-[230px_minmax(0,1fr)_440px]">
-          <aside className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Fila</p>
-                <h2 className="text-lg font-black text-white">Entrada</h2>
-              </div>
-              <Filter className="text-zinc-400" size={18} />
-            </div>
+        {showingOrdersPanel && (
+        <main className="mt-3 grid min-h-0 flex-1 gap-3 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_560px] 2xl:grid-cols-[240px_minmax(0,1fr)_620px]">
+          <OrderFilters
+            activeFilter={activeFilter}
+            filters={filters}
+            hideFinished={hideFinished}
+            onClear={() => {
+              setActiveFilter("todos")
+              setActiveStatusFilter("todos")
+              setSearch("")
+              showNotice("Mostrando todos os pedidos.")
+            }}
+            onFilterChange={(value, label) => {
+              setActiveFilter(value as OrderFilter)
+              setActiveStatusFilter("todos")
+              showNotice(`Filtro aplicado: ${label}.`)
+            }}
+            setHideFinished={setHideFinished}
+          />
 
-            <div className="mt-3 space-y-2">
-              {filters.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => {
-                    setActiveFilter(filter.value)
-                    setActiveStatusFilter("todos")
-                    setNotice(`Filtro aplicado: ${filter.label}.`)
-                  }}
-                  className={`flex h-11 w-full items-center justify-between rounded-lg px-3 text-xs font-black ${
-                    activeFilter === filter.value
-                      ? filter.value === "entrega"
-                        ? "bg-orange-400 text-black"
-                        : "bg-white text-black"
-                      : "border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10"
-                  }`}
-                >
-                  <span>{filter.label}</span>
-                  <span>{filter.count}</span>
-                </button>
-              ))}
-            </div>
+          <OrderList
+            activeSelectedOrderId={activeSelectedOrderId}
+            activeWindowHours={activeOrdersWindowHours}
+            connectionStatus={connectionStatus}
+            highlightedOrderIds={orderSound.unacknowledgedOrderIds}
+            isSyncing={isSyncing}
+            onSelectOrder={selectOrder}
+	            orders={visibleOrdersWithTotals}
+            search={search}
+            setSearch={setSearch}
+          />
 
-            <label className="mt-4 flex items-center gap-2 rounded-lg border border-white/10 bg-black/[0.18] p-3 text-xs font-bold text-zinc-300">
-              <input
-                type="checkbox"
-                checked={hideFinished}
-                onChange={(event) => setHideFinished(event.target.checked)}
-                className="h-4 w-4 accent-orange-400"
-              />
-              Ocultar concluidos e cancelados
-            </label>
-
-            <button
-              className="mt-auto hidden h-10 rounded-lg bg-[#090b18] px-4 text-xs font-black uppercase text-white transition hover:bg-black xl:block"
-              type="button"
-              onClick={() => {
-                setActiveFilter("todos")
-                setActiveStatusFilter("todos")
-                setSearch("")
-                setNotice("Mostrando todos os pedidos.")
-              }}
-            >
-              Limpar filtros
-            </button>
-          </aside>
-
-          <section className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
-            <div className="flex flex-col gap-3 border-b border-white/10 pb-3 md:flex-row md:items-center">
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Pedidos de hoje</p>
-                <h2 className="text-xl font-black text-white">{visibleOrders.length} na tela</h2>
-              </div>
-              <label className="flex h-10 min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-zinc-400 md:w-80">
-                <Search size={15} />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="w-full bg-transparent text-white outline-none placeholder:text-zinc-500"
-                  placeholder="Buscar por cliente ou numero"
-                />
-              </label>
-            </div>
-
-            <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-              {visibleOrders.map((order) => (
-                <OrderCard
-	                  key={order.id}
-	                  isSelected={activeSelectedOrderId === order.id}
-	                  order={order}
-	                  onOpenDiscount={() => {
-	                    setDiscountOrderId(order.id)
-	                    setDiscountMode(order.discountPercent ? "percentual" : "valor")
-	                    setDiscountValue(order.discountPercent ?? order.discount ?? 0)
-	                    setDiscountReason(order.discountReason ?? "")
-	                  }}
-	                  onSelect={() => selectOrder(order)}
-	                />
-              ))}
-
-	              {visibleOrders.length === 0 && (
-	                <div className="rounded-lg border border-dashed border-white/[0.12] bg-black/[0.16] p-8 text-center">
-	                  <PackageCheck className="mx-auto text-zinc-500" size={38} />
-	                  <h3 className="mt-3 text-lg font-black text-white">
-	                    {connectionStatus === "offline" ? "Backend offline" : "Nenhum pedido encontrado"}
-	                  </h3>
-	                  <p className="mt-2 text-sm leading-6 text-zinc-500">
-	                    {connectionStatus === "offline"
-	                      ? "O painel fica pronto com o cache local e atualiza assim que a API responder."
-	                      : "Quando entrar um pedido novo, ele aparece aqui em ordem de horario."}
-	                  </p>
-	                </div>
-	              )}
-            </div>
-          </section>
-
-          <aside className="min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-4">
+          <OrderDetails>
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-black">Detalhes do pedido</h2>
                   <MapPin className="text-orange-300" size={20} />
@@ -2138,97 +3710,209 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 )}
 
                 {selectedOrder && (
-                  <div className="mt-5 space-y-5">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {isEditing ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={saveEdit}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-                          >
-                            <Save size={15} />
-                            Salvar edicao
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsEditing(false)
-                              setDraft(null)
-                              setNotice(`Edicao do pedido #${selectedOrder.id} cancelada.`)
-                            }}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
-                          >
-                            <X size={15} />
-                            Cancelar edicao
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          {selectedOrder.status === "novo" && (
-                            <button
-                              type="button"
-                              onClick={() => updateSelectedOrder({ status: "preparando" }, `Pedido #${selectedOrder.id} aprovado.`)}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300"
-                            >
-                              <Check size={15} />
-                              Aprovar pedido
-                            </button>
-                          )}
+                  <div className="mt-5 space-y-3">
+                    <div className={`overflow-hidden rounded-lg border ${
+                      selectedOrder.status === "cancelado"
+                        ? "border-red-300/30 bg-red-500/[0.08]"
+                        : selectedOrder.status === "finalizado" || selectedOrder.status === "concluido"
+                          ? "border-emerald-300/30 bg-emerald-500/[0.08]"
+                          : "border-orange-300/25 bg-orange-400/[0.08]"
+                    }`}>
+                      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_190px]">
+                        <div className="min-w-0 p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-lg bg-orange-400 px-3 py-1 text-xs font-black uppercase text-black">
+                              Pedido #{selectedOrder.id}
+                            </span>
+                            <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-1 text-xs font-black uppercase text-white">
+                              {statusLabels[selectedOrder.status] ?? selectedOrder.status}
+                            </span>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={saveEdit}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300"
+                                >
+                                  <Save size={15} />
+                                  Salvar edição
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEditing(false)
+                                    setDraft(null)
+                                    showNotice(`Edição do pedido #${selectedOrder.id} cancelada.`)
+                                  }}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10"
+                                >
+                                  <X size={15} />
+                                  Cancelar
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {selectedOrder.status === "novo" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating}
+                                    onClick={() => updateSelectedOrder(
+                                      { status: "preparando" },
+                                      `Pedido #${selectedOrder.id} aprovado e enviado para preparo.`
+                                    )}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <Check size={15} />
+                                    {selectedOrderIsUpdating ? "Salvando..." : "Aprovar e preparar"}
+                                  </button>
+                                )}
+                                {selectedOrder.status === "aprovado" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating}
+                                    onClick={() => updateSelectedOrder({ status: "preparando" }, `Pedido #${selectedOrder.id} enviado para preparo.`)}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-black text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <PackageCheck size={15} />
+                                    {selectedOrderIsUpdating ? "Salvando..." : "Iniciar preparo"}
+                                  </button>
+                                )}
+                                {selectedOrder.status === "preparando" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating || (selectedOrder.delivery === "Delivery" && !selectedOrder.courierId)}
+                                    onClick={() => {
+                                      const nextStatus = selectedOrder.delivery === "Delivery"
+                                        ? "saiu"
+                                        : selectedOrder.delivery === "Mesa"
+                                          ? "concluido"
+                                          : "pronto"
 
-                          {selectedOrder.status !== "cancelado" && selectedOrder.status !== "concluido" && (
-                            <button
-                              type="button"
-                              onClick={startEdit}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
-                            >
-                              <Edit3 size={15} />
-                              Editar pedido
-                            </button>
+                                      return updateSelectedOrder(
+                                        { status: nextStatus },
+                                        selectedOrder.delivery === "Delivery"
+                                          ? `Pedido #${selectedOrder.id} saiu para entrega.`
+                                          : selectedOrder.delivery === "Mesa"
+                                            ? `Pedido #${selectedOrder.id} concluído na mesa.`
+                                            : `Pedido #${selectedOrder.id} marcado como pronto para retirada.`
+                                      )
+                                    }}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-black text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {selectedOrder.delivery === "Delivery" ? <Truck size={15} /> : <CheckCircle2 size={15} />}
+                                    {selectedOrderIsUpdating
+                                      ? "Salvando..."
+                                      : selectedOrder.delivery === "Delivery" && !selectedOrder.courierId
+                                        ? "Selecione um motoboy"
+                                        : selectedOrder.delivery === "Delivery"
+                                          ? "Enviar para entrega"
+                                          : selectedOrder.delivery === "Mesa"
+                                            ? "Concluir mesa"
+                                            : "Marcar pronto"}
+                                  </button>
+                                )}
+                                {selectedOrder.status === "pronto" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating}
+                                    onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <CheckCircle2 size={15} />
+                                    {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
+                                  </button>
+                                )}
+                                {selectedOrder.status === "saiu" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating}
+	                                    onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <CheckCircle2 size={15} />
+                                    {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
+                                  </button>
+                                )}
+                                {selectedOrder.status === "concluido" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating}
+                                    onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <CheckCircle2 size={15} />
+                                    {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  title="Reimprimir comanda"
+                                  aria-label="Reimprimir comanda"
+                                  onClick={() => void printApprovalTickets(selectedOrder, { copies: localPanelSettings.printCopies }).then(
+                                    () => showStatusToast("Comanda enviada"),
+                                    (error) => showNotice(error instanceof Error ? error.message : "Não foi possível reimprimir a comanda.")
+                                  )}
+                                  className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                                >
+                                  <Printer size={18} />
+                                </button>
+                                {selectedOrder.status !== "cancelado" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating}
+                                    onClick={startEdit}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <Edit3 size={15} />
+                                    Editar
+                                  </button>
+                                )}
+                                {selectedOrder.status === "cancelado" && (
+                                  <button
+                                    type="button"
+                                    disabled={selectedOrderIsUpdating}
+                                    onClick={restoreSelectedOrder}
+                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <RefreshCw size={15} />
+                                    {selectedOrderIsUpdating ? "Restaurando..." : "Restaurar pedido"}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                          <h3 className="mt-4 break-words text-3xl font-black leading-none text-white">
+                            {selectedOrder.customer}
+                          </h3>
+	                          <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px]">
+	                            <div className={`rounded-lg border px-3 py-3 text-center ${deliveryHighlightStyles[selectedOrder.delivery]}`}>
+	                              <p className="text-[10px] font-black uppercase text-zinc-500">Tipo do pedido</p>
+	                              <strong className="mt-1 block whitespace-normal text-xl font-black uppercase leading-tight">{selectedOrder.delivery}</strong>
+	                            </div>
+	                            <div className="rounded-lg bg-black/20 px-3 py-3 text-center">
+	                              <p className="text-[10px] font-black uppercase text-zinc-500">Itens</p>
+	                              <strong className="mt-1 block text-xl font-black text-white">{selectedOrder.items.length}</strong>
+	                            </div>
+	                          </div>
+	                          {selectedOrder.status === "cancelado" && selectedOrder.cancelReason && (
+                            <p className="mt-3 rounded-lg border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-100">
+                              Motivo do cancelamento: {selectedOrder.cancelReason}
+                            </p>
                           )}
-
-                          {selectedOrder.status === "preparando" && (
-                            <button
-                              type="button"
-                              onClick={() => updateSelectedOrder({ status: "saiu" }, `Pedido #${selectedOrder.id} marcado como pronto.`)}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-cyan-400 px-3 text-xs font-black text-black transition hover:bg-cyan-300"
-                            >
-                              <CheckCircle2 size={15} />
-                              Marcar pronto
-                            </button>
-                          )}
-
-                          {selectedOrder.status === "saiu" && (
-                            <button
-                              type="button"
-                              onClick={() => updateSelectedOrder({ status: "concluido" }, `Pedido #${selectedOrder.id} concluido.`)}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300"
-                            >
-                              <CheckCircle2 size={15} />
-                              Concluir pedido
-                            </button>
-                          )}
-
-                          {(selectedOrder.status === "concluido" || selectedOrder.status === "cancelado") && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateSelectedOrder(
-                                  { cancelReason: undefined, status: "preparando" },
-                                  `Pedido #${selectedOrder.id} restaurado para preparo.`
-                                )
-                              }
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-cyan-300/35 bg-cyan-400/15 px-3 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/[0.24]"
-                            >
-                              <CheckCircle2 size={15} />
-                              Restaurar pedido
-                            </button>
-                          )}
-                        </>
-                      )}
+                        </div>
+                        <div className="border-t border-white/10 bg-black/25 p-4 lg:border-l lg:border-t-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Total</p>
+                          <strong className="mt-2 block text-3xl font-black leading-none text-emerald-100">
+	                            {formatCurrency(calculateOrderTotal(selectedOrder))}
+                          </strong>
+                          <p className="mt-3 break-words text-xs font-bold text-zinc-400">{selectedOrder.payment}</p>
+                        </div>
+                      </div>
                     </div>
 
-                    {(selectedOrder.status === "concluido" || selectedOrder.status === "cancelado") && (
+                    {(selectedOrder.status === "concluido" || selectedOrder.status === "finalizado" || selectedOrder.status === "cancelado") && (
                       <div
                         className={`rounded-lg border p-3 ${
                           selectedOrder.status === "cancelado"
@@ -2237,264 +3921,167 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         }`}
                       >
                         <p className="text-xs font-black uppercase tracking-[0.14em]">
-                          {selectedOrder.status === "cancelado" ? "Pedido cancelado" : "Pedido concluido"}
+	                          {selectedOrder.status === "cancelado" ? "Pedido cancelado" : selectedOrder.status === "finalizado" ? "Pedido finalizado" : "Pedido concluído"}
                         </p>
                         <p className="mt-1 text-sm leading-5 opacity-80">
-                          Este pedido saiu da fila ativa. Use restaurar pedido se isso aconteceu por engano.
+                          {selectedOrder.status === "cancelado"
+                            ? "Este pedido saiu da fila ativa. Use restaurar pedido se isso aconteceu por engano."
+                            : "Este pedido está encerrado operacionalmente."}
                         </p>
                       </div>
                     )}
 
-                    <div className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-black uppercase tracking-[0.16em] text-orange-300">
-                          Pedido #{selectedOrder.id}
-                        </span>
-                        <span className="rounded-full border border-orange-300/30 bg-orange-400/10 px-3 py-1 text-xs font-black uppercase text-orange-200">
-                          {statusLabels[selectedOrder.status] ?? selectedOrder.status}
-                        </span>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                          <div className="flex items-center gap-2 text-orange-300">
+                            <User size={15} />
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em]">Cliente</p>
+                          </div>
+                          <strong className="mt-2 block break-words text-base text-white">{selectedOrder.customer}</strong>
+                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">{selectedOrder.phone}</p>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                          <div className="flex items-center gap-2 text-orange-300">
+                            <SelectedDeliveryIcon size={15} />
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em]">Tipo</p>
+                          </div>
+	                          <strong className="mt-2 block text-base text-white">{selectedOrder.delivery}</strong>
+	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">{selectedOrder.address}</p>
+	                          {selectedOrder.delivery === "Delivery" && (
+                              <div className="mt-2 rounded-lg border border-orange-300/20 bg-orange-400/10 p-2">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-orange-100/70" htmlFor="selected-order-courier">
+                                  Entregador
+                                </label>
+                                <select
+                                  id="selected-order-courier"
+                                  value={selectedOrder.courierId ?? ""}
+                                  onChange={(event) => void assignCourierToOrder(selectedOrder, event.target.value)}
+                                  disabled={selectedOrderIsUpdating}
+                                  className="mt-1 h-9 w-full rounded-lg border border-white/10 bg-black/[0.28] px-2 text-xs font-black text-white outline-none focus:border-orange-300/60 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <option value="">Selecione um motoboy</option>
+                                  {activeCouriers.map((courier) => (
+                                    <option key={courier.id} value={courier.id}>
+                                      {courier.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                {activeCouriers.length === 0 && (
+                                  <p className="mt-2 text-[11px] font-bold text-orange-100/70">
+                                    Cadastre um motoboy no caixa para liberar a entrega.
+                                  </p>
+                                )}
+                                {!selectedOrder.courierId && activeCouriers.length > 0 && (
+                                  <p className="mt-2 text-[11px] font-bold text-orange-100/80">
+                                    Selecione um motoboy antes de enviar para entrega.
+                                  </p>
+                                )}
+                              </div>
+	                          )}
+	                        </div>
+                        <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                          <div className="flex items-center gap-2 text-orange-300">
+                            <DollarSign size={15} />
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em]">Conta</p>
+                          </div>
+	                          <strong className="mt-2 block text-base text-white">{selectedOrder.payment}</strong>
+	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">
+	                            Sub {formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}
+	                          </p>
+	                          {selectedOrder.payment === "Dinheiro" && selectedOrder.needsChange && (
+	                            <p className="mt-2 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-100">
+	                              Troco para {formatCurrency(selectedOrder.changeFor ?? 0)}
+	                            </p>
+	                          )}
+	                        </div>
                       </div>
 
-                      <div className="mt-4 flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-2xl font-black text-white">
-                            {selectedOrder.customer}
-                          </h3>
-                          {selectedOrder.cancelReason && (
-                            <p className="mt-2 text-xs font-bold text-red-100/80">
-                              Motivo do cancelamento: {selectedOrder.cancelReason}
-                            </p>
-                          )}
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
+                      <div className="rounded-lg border border-white/10 bg-[#100b08] p-4">
+                        <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                          <div>
+                            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Itens do pedido</p>
+                            <h3 className="mt-1 text-xl font-black text-white">{selectedOrder.items.length} {selectedOrder.items.length === 1 ? "item" : "itens"}</h3>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          {selectedOrder.items.map((item, index) => {
+                            const itemDetail = parseOrderItemDetail(item)
+
+                            return (
+                              <div key={`${index}-${item}`} className="rounded-lg border border-white/10 bg-black/25 p-3">
+                                <div className="flex items-start gap-3">
+                                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-orange-400 text-base font-black text-black">
+                                    {itemDetail.quantity}x
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <strong className="block text-lg font-black leading-6 text-white">{itemDetail.name}</strong>
+                                    {itemDetail.additions.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {itemDetail.additions.map((addition) => (
+                                          <span key={addition} className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] font-bold text-zinc-300">
+                                            + {addition}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {itemDetail.note && (
+                                      <div className="mt-3 rounded-lg border-l-4 border-orange-300 bg-orange-400/10 px-3 py-2">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-200">Observação do item</p>
+                                        <p className="mt-1 text-sm font-semibold leading-5 text-white">{itemDetail.note}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-white/10 bg-[#100b08] p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-orange-300">Resumo</p>
+                        <div className="mt-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2 border-b border-white/10 py-2 text-sm">
+                              <span className="font-bold text-zinc-500">Subtotal</span>
+	                              <strong className="text-white">{formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}</strong>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 border-b border-white/10 py-2 text-sm">
+                              <span className="font-bold text-zinc-500">Entrega</span>
+                              <strong className="text-white">{formatCurrency(selectedOrder.deliveryFee ?? 0)}</strong>
+                            </div>
+                            {(selectedOrder.discount || selectedOrder.discountPercent) && (
+                              <div className="flex items-center justify-between gap-2 border-b border-orange-300/20 py-2 text-sm">
+                                <span className="font-bold text-orange-200">Desconto</span>
+                                <strong className="text-white">
+                                  {selectedOrder.discountPercent
+                                    ? `${selectedOrder.discountPercent}%`
+                                    : formatCurrency(selectedOrder.discount ?? 0)}
+                                </strong>
+                              </div>
+                            )}
+                            <div className="rounded-lg bg-emerald-400/10 p-3">
+                              <p className="text-[10px] font-black uppercase text-emerald-100/70">Total final</p>
+	                              <strong className="mt-1 block text-2xl text-emerald-100">{formatCurrency(calculateOrderTotal(selectedOrder))}</strong>
+                            </div>
                         </div>
                       </div>
                     </div>
 
-                    {isEditing && draft ? (
-                      <div className="space-y-3">
-                        <label className="block">
-                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Cliente</span>
-                          <input
-                            value={draft.customer}
-                            onChange={(event) => setDraft({ ...draft, customer: event.target.value })}
-                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Telefone</span>
-                          <input
-                            value={draft.phone}
-                            onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
-                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Endereco ou mesa</span>
-                          <input
-                            value={draft.address}
-                            onChange={(event) => setDraft({ ...draft, address: event.target.value })}
-                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Categoria do pedido</span>
-                          <select
-                            value={draft.delivery}
-                            onChange={(event) => setDraft({ ...draft, delivery: event.target.value as DeliveryType })}
-                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-                          >
-                            {deliveryOptions.map((delivery) => (
-                              <option key={delivery} value={delivery}>
-                                {delivery}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <p className="flex items-center gap-3 rounded-lg bg-white/[0.04] p-3 text-sm text-zinc-200">
-                          <User size={17} className="text-orange-300" />
-                          {selectedOrder.customer}
-                        </p>
-                        <p className="flex items-center gap-3 rounded-lg bg-white/[0.04] p-3 text-sm text-zinc-200">
-                          <Phone size={17} className="text-orange-300" />
-                          {selectedOrder.phone}
-                        </p>
-                        <p className="flex items-start gap-3 rounded-lg bg-white/[0.04] p-3 text-sm text-zinc-200">
-                          <MapPin size={17} className="mt-0.5 shrink-0 text-orange-300" />
-                          {selectedOrder.address}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
-                      <div className={`mb-4 flex items-center gap-3 rounded-lg border p-3 ${deliveryStyles[selectedOrder.delivery] ?? deliveryStyles.Retirada}`}>
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-black/20">
-                          <SelectedDeliveryIcon size={19} />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.14em] opacity-70">
-                            Forma do pedido
-                          </p>
-                          <strong className="block truncate text-lg font-black uppercase">
-                            {selectedOrder.delivery}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div>
-                          <p className="text-[11px] font-black uppercase text-zinc-500">Tipo</p>
-                          <strong className="mt-1 block text-sm text-white">{selectedOrder.delivery}</strong>
-                        </div>
-                        {isEditing && draft ? (
-                          <>
-                            <label className="block">
-                              <span className="mb-2 block text-[11px] font-black uppercase text-zinc-500">Pagamento</span>
-                              <select
-                                value={paymentOptions.includes(draft.payment) ? draft.payment : "Outro"}
-                                onChange={(event) =>
-                                  setDraft({
-                                    ...draft,
-                                    payment: event.target.value === "Outro" ? "" : event.target.value,
-                                  })
-                                }
-                                className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-                              >
-                                {paymentOptions.map((payment) => (
-                                  <option key={payment} value={payment}>
-                                    {payment}
-                                  </option>
-                                ))}
-                                <option value="Outro">Outro</option>
-                              </select>
-                            </label>
-                            <label className="block">
-                              <span className="mb-2 block text-[11px] font-black uppercase text-zinc-500">Total</span>
-                              <input
-                                type="number"
-                                value={draft.total}
-                                onChange={(event) => setDraft({ ...draft, total: Number(event.target.value) })}
-                                className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-                              />
-                            </label>
-                          </>
-                        ) : (
-                          <>
-                            <div>
-                              <p className="text-[11px] font-black uppercase text-zinc-500">Pagamento</p>
-                              <strong className="mt-1 block text-sm text-white">{selectedOrder.payment}</strong>
-                            </div>
-                            <div>
-                              <p className="text-[11px] font-black uppercase text-zinc-500">Total</p>
-                              <strong className="mt-1 block text-sm text-orange-200">R$ {selectedOrder.total}</strong>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {isEditing && draft && !paymentOptions.includes(draft.payment) && (
-                        <label className="mt-3 block">
-                          <span className="mb-2 block text-[11px] font-black uppercase text-zinc-500">Outra forma de pagamento</span>
-                          <input
-                            value={draft.payment}
-                            onChange={(event) => setDraft({ ...draft, payment: event.target.value })}
-                            placeholder="Ex: Voucher, transferencia, cortesia"
-                            className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-                          />
-                        </label>
-                      )}
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                          <p className="text-[11px] font-black uppercase text-zinc-500">Tempo do pedido</p>
-                          <strong className="mt-1 block text-sm text-white">{selectedOrder.time}</strong>
-                        </div>
-                        <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                          <p className="text-[11px] font-black uppercase text-zinc-500">Contato</p>
-                          <strong className="mt-1 block text-sm text-white">{selectedOrder.phone}</strong>
-                        </div>
-                      </div>
-
-	                      <div className="mt-4">
-	                        <div className="flex items-center justify-between gap-3">
-	                          <p className="text-[11px] font-black uppercase text-zinc-500">Itens do pedido</p>
-	                          {isEditing && draft && (
-	                            <button
-	                              type="button"
-	                              onClick={() => setDraft({ ...draft, items: [...draft.items, ""] })}
-	                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-orange-300/25 bg-orange-400/10 px-2.5 text-[11px] font-black text-orange-100 transition hover:bg-orange-400/[0.18]"
-	                            >
-	                              <Plus size={13} />
-	                              Item
-	                            </button>
-	                          )}
-	                        </div>
-	                        <div className="mt-2 space-y-2">
-	                          {isEditing && draft ? (
-	                            draft.items.map((item, index) => (
-	                              <div key={`${index}-${item}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_36px]">
-	                                <input
-	                                  value={item}
-	                                  onChange={(event) => {
-	                                    const nextItems = [...draft.items]
-
-	                                    nextItems[index] = event.target.value
-	                                    setDraft({ ...draft, items: nextItems })
-	                                  }}
-	                                  placeholder="Ex: 1x X-Bacon + cheddar (sem cebola)"
-	                                  className="h-10 rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-	                                />
-	                                <button
-	                                  type="button"
-	                                  onClick={() => setDraft({ ...draft, items: draft.items.filter((_, itemIndex) => itemIndex !== index) })}
-	                                  className="grid h-10 place-items-center rounded-lg border border-red-300/25 bg-red-400/10 text-red-100 transition hover:bg-red-400/[0.18]"
-	                                  aria-label="Remover item"
-	                                >
-	                                  <X size={14} />
-	                                </button>
-	                              </div>
-	                            ))
-	                          ) : (
-	                            selectedOrder.items.map((item) => (
-	                              <div key={item} className="rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white">
-	                                {item}
-	                              </div>
-	                            ))
-	                          )}
-	                        </div>
-	                      </div>
-
-                      <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                        <p className="text-[11px] font-black uppercase text-zinc-500">Observacoes</p>
-                        {isEditing && draft ? (
-                          <textarea
-                            value={draft.notes}
-                            onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
-                            placeholder="Ex: sem cebola, trocar refrigerante, cliente pediu troco..."
-                            className="mt-2 min-h-24 w-full resize-none rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-                          />
-                        ) : (
-                          <p className="mt-2 text-sm leading-6 text-zinc-200">
-                            {selectedOrder.notes || "Sem observacoes para este pedido."}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {!isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "concluido" && (
+                    {!isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "finalizado" && (
                       <div className="rounded-lg border border-red-300/20 bg-red-400/[0.06] p-3">
                         {!isCanceling ? (
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-[11px] font-bold text-red-100/60">
-                              Area de cancelamento
+                              Área de cancelamento
                             </span>
                             <button
                               type="button"
                               onClick={() => {
                                 setCancelReason(cancelReasons[0])
                                 setIsCanceling(true)
-                                setNotice(`Escolha o motivo para cancelar o pedido #${selectedOrder.id}.`)
+                                showNotice(`Escolha o motivo para cancelar o pedido #${selectedOrder.id}.`)
                               }}
                               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-red-300/25 bg-red-400/10 px-2.5 text-[11px] font-black text-red-100 transition hover:bg-red-400/[0.18]"
                             >
@@ -2526,7 +4113,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                 type="button"
                                 onClick={() => {
                                   setIsCanceling(false)
-                                  setNotice(`Cancelamento do pedido #${selectedOrder.id} fechado.`)
+                                  showNotice(`Cancelamento do pedido #${selectedOrder.id} fechado.`)
                                 }}
                                 className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
                               >
@@ -2547,7 +4134,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     )}
                   </div>
                 )}
-              </aside>
+              </OrderDetails>
         </main>
         )}
       </div>

@@ -2,20 +2,23 @@ import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-const ADMIN_EMAIL = "admin@gmail.com";
-const ADMIN_PASSWORD = "pitsdog";
+import { loginAdmin } from "../services/admin-api";
+
+const logoUrl = `${import.meta.env.BASE_URL}LogoPitis.png`;
 
 type LoginProps = {
   onLogin: () => void;
+  sessionMessage?: string;
 };
 
-export default function Login({ onLogin }: LoginProps) {
+export default function Login({ onLogin, sessionMessage }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!email || !password) {
@@ -23,17 +26,21 @@ export default function Login({ onLogin }: LoginProps) {
       return;
     }
 
-    if (email.trim().toLowerCase() !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
-      setError("E-mail ou senha incorretos.");
-      return;
-    }
-
+    setIsSubmitting(true);
     setError("");
-    onLogin();
+
+    try {
+      await loginAdmin(email.trim().toLowerCase(), password);
+      onLogin();
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "Não foi possível entrar no painel.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
-    <main className="login-screen relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 text-white sm:px-6">
+    <main className="login-screen relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-8 text-white sm:px-6">
       <div className="login-noise absolute inset-0" />
       <div className="login-dots absolute inset-0" aria-hidden="true" />
 
@@ -41,7 +48,7 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="mb-7 flex justify-center">
           <div className="login-logo-glow flex h-32 w-32 items-center justify-center p-2">
             <img
-              src="/LogoPitis.png"
+              src={logoUrl}
               alt="Pits Dog"
               className="login-logo-img drop-shadow-[0_18px_34px_rgba(255,106,0,0.2)]"
             />
@@ -61,6 +68,12 @@ export default function Login({ onLogin }: LoginProps) {
             <p className="mt-2 text-sm leading-6 text-zinc-400">
               Gerencie pedidos e acompanhe a operação em tempo real.
             </p>
+
+            {sessionMessage && (
+              <p className="mt-3 rounded-lg border border-orange-300/25 bg-orange-400/10 px-3 py-2 text-xs font-bold text-orange-100">
+                {sessionMessage}
+              </p>
+            )}
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -80,7 +93,7 @@ export default function Login({ onLogin }: LoginProps) {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="admin@pitsdog.com"
+                  placeholder="admin-teste@pitsdog.local"
                   autoComplete="email"
                   className="h-[52px] w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
                 />
@@ -127,9 +140,10 @@ export default function Login({ onLogin }: LoginProps) {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="mt-2 h-[52px] w-full rounded-lg bg-pits-orange px-5 text-sm font-black uppercase tracking-[0.16em] text-black shadow-[0_18px_38px_rgba(255,106,0,0.24)] transition hover:-translate-y-0.5 hover:bg-orange-300 hover:shadow-[0_22px_46px_rgba(255,106,0,0.32)] focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-2 focus:ring-offset-pits-dark"
             >
-              Entrar
+              {isSubmitting ? "Entrando..." : "Entrar"}
             </button>
           </form>
         </div>

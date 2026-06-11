@@ -54,7 +54,7 @@ function writeMenuCache(cache: MenuCache) {
   }
 }
 
-export function useMenuAdmin() {
+export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   const [cachedMenu] = useState(readMenuCache)
   const [categories, setCategories] = useState<MenuCategory[]>(cachedMenu.categories)
   const [products, setProducts] = useState<MenuProduct[]>(cachedMenu.products)
@@ -63,49 +63,45 @@ export function useMenuAdmin() {
     hasMenuBackend ? "offline" : "not-configured"
   )
 
-  useEffect(() => {
-    let isMounted = true
-
-    async function loadMenu() {
-      if (!hasMenuBackend) {
-        setStatus("not-configured")
-        return
-      }
-
-      const [menuCategories, menuProducts, menuAdditionals] = await Promise.allSettled([
-        menuApi.listCategories(),
-        menuApi.listProducts(),
-        menuApi.listAdditionals(),
-      ])
-
-      if (!isMounted) return
-
-      if (menuCategories.status === "fulfilled") {
-        setCategories(sortCategories(menuCategories.value))
-      }
-
-      if (menuProducts.status === "fulfilled") {
-        setProducts(sortByName(menuProducts.value))
-      }
-
-      if (menuAdditionals.status === "fulfilled") {
-        setAdditionals(sortByName(menuAdditionals.value))
-      }
-
-      const hasLoadedAnyMenuData =
-        menuCategories.status === "fulfilled" ||
-        menuProducts.status === "fulfilled" ||
-        menuAdditionals.status === "fulfilled"
-
-      setStatus(hasLoadedAnyMenuData ? "online" : "offline")
+  async function loadMenu() {
+    if (!hasMenuBackend) {
+      setStatus("not-configured")
+      return false
     }
+
+    const [menuCategories, menuProducts, menuAdditionals] = await Promise.allSettled([
+      menuApi.listCategories(),
+      menuApi.listProducts(),
+      menuApi.listAdditionals(),
+    ])
+
+    if (menuCategories.status === "fulfilled") {
+      setCategories(sortCategories(menuCategories.value))
+    }
+
+    if (menuProducts.status === "fulfilled") {
+      setProducts(sortByName(menuProducts.value))
+    }
+
+    if (menuAdditionals.status === "fulfilled") {
+      setAdditionals(sortByName(menuAdditionals.value))
+    }
+
+    const hasLoadedAnyMenuData =
+      menuCategories.status === "fulfilled" ||
+      menuProducts.status === "fulfilled" ||
+      menuAdditionals.status === "fulfilled"
+
+    setStatus(hasLoadedAnyMenuData ? "online" : "offline")
+
+    return hasLoadedAnyMenuData
+  }
+
+  useEffect(() => {
+    if (!options.autoload) return
 
     void loadMenu()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  }, [options.autoload])
 
   useEffect(() => {
     if (categories.length === 0 && products.length === 0 && additionals.length === 0) return
@@ -118,6 +114,7 @@ export function useMenuAdmin() {
 
     setCategories((currentCategories) => sortCategories([...currentCategories, createdCategory]))
     setStatus("online")
+    return createdCategory
   }
 
   async function updateCategory(id: number, category: MenuCategoryDraft) {
@@ -129,6 +126,7 @@ export function useMenuAdmin() {
       )))
     )
     setStatus("online")
+    return updatedCategory
   }
 
   async function updateCategoryStatus(id: number, ativo: boolean) {
@@ -139,6 +137,7 @@ export function useMenuAdmin() {
         currentCategory.id === id ? updatedCategory : currentCategory
       )))
     )
+    return updatedCategory
   }
 
   function applyCategoryStatus(id: number, ativo: boolean) {
@@ -169,20 +168,34 @@ export function useMenuAdmin() {
 
   async function createProduct(product: MenuProductDraft) {
     const createdProduct = await menuApi.createProduct(product)
+    const productWithDraftSubtitle = {
+      ...createdProduct,
+      destaque: createdProduct.destaque || Boolean(product.highlight.trim()),
+      highlight: createdProduct.highlight || product.highlight.trim() || null,
+      subtitle: createdProduct.subtitle || product.highlight.trim() || null,
+    }
 
-    setProducts((currentProducts) => sortByName([...currentProducts, createdProduct]))
+    setProducts((currentProducts) => sortByName([...currentProducts, productWithDraftSubtitle]))
     setStatus("online")
+    return productWithDraftSubtitle
   }
 
   async function updateProduct(id: number, product: MenuProductDraft) {
     const updatedProduct = await menuApi.updateProduct(id, product)
+    const productWithDraftSubtitle = {
+      ...updatedProduct,
+      destaque: updatedProduct.destaque || Boolean(product.highlight.trim()),
+      highlight: updatedProduct.highlight || product.highlight.trim() || null,
+      subtitle: updatedProduct.subtitle || product.highlight.trim() || null,
+    }
 
     setProducts((currentProducts) =>
       sortByName(currentProducts.map((currentProduct) => (
-        currentProduct.id === id ? updatedProduct : currentProduct
+        currentProduct.id === id ? productWithDraftSubtitle : currentProduct
       )))
     )
     setStatus("online")
+    return productWithDraftSubtitle
   }
 
   async function updateProductStatus(product: MenuProduct) {
@@ -193,6 +206,7 @@ export function useMenuAdmin() {
         currentProduct.id === product.id ? updatedProduct : currentProduct
       )))
     )
+    return updatedProduct
   }
 
   function applyProductStatus(id: number, ativo: boolean) {
@@ -222,6 +236,7 @@ export function useMenuAdmin() {
 
     setAdditionals((currentAdditionals) => sortByName([...currentAdditionals, createdAdditional]))
     setStatus("online")
+    return createdAdditional
   }
 
   async function updateAdditional(id: number, additional: MenuAdditionalDraft) {
@@ -233,6 +248,7 @@ export function useMenuAdmin() {
       )))
     )
     setStatus("online")
+    return updatedAdditional
   }
 
   async function updateAdditionalStatus(additional: MenuAdditional) {
@@ -243,6 +259,7 @@ export function useMenuAdmin() {
         currentAdditional.id === additional.id ? updatedAdditional : currentAdditional
       )))
     )
+    return updatedAdditional
   }
 
   function applyAdditionalStatus(id: number, ativo: boolean) {
@@ -284,6 +301,7 @@ export function useMenuAdmin() {
     deleteCategory,
     deleteProduct,
     isConnected: status === "online",
+    loadMenu,
     products,
     removeAdditionalFromPanel,
     removeCategoryFromPanel,

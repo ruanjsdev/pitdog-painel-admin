@@ -15,6 +15,7 @@ export type MenuCategoryDraft = Omit<MenuCategory, "id" | "imagem"> & {
 export type MenuProduct = {
   id: number
   nome: string
+  destaque?: boolean
   highlight?: string | null
   subtitle?: string | null
   descricao: string
@@ -23,6 +24,7 @@ export type MenuProduct = {
   imagem?: string | null
   imageUrl?: string | null
   categoriaId: number
+  permiteAdicionais?: boolean
 }
 
 export type MenuProductDraft = {
@@ -33,6 +35,7 @@ export type MenuProductDraft = {
   ativo: boolean
   imagem: string
   categoriaId: number
+  permiteAdicionais: boolean
 }
 
 export type MenuAdditional = {
