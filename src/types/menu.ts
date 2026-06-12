@@ -10,6 +10,7 @@ export type MenuCategory = {
 
 export type MenuCategoryDraft = Omit<MenuCategory, "id" | "imagem"> & {
   imagem: string
+  imageFile?: File | null
 }
 
 export type MenuProduct = {
@@ -41,6 +42,7 @@ export type MenuProductDraft = {
   preco: number
   ativo: boolean
   imagem: string
+  imageFile?: File | null
   categoriaId: number
   permiteAdicionais: boolean
   hasFlavors?: boolean
@@ -55,9 +57,13 @@ export type MenuAdditional = {
   descricao: string
   preco: number
   ativo: boolean
+  imagem?: string | null
+  imageUrl?: string | null
 }
 
-export type MenuAdditionalDraft = Omit<MenuAdditional, "id">
+export type MenuAdditionalDraft = Omit<MenuAdditional, "id"> & {
+  imageFile?: File | null
+}
 
 export type Addon = {
   id: string

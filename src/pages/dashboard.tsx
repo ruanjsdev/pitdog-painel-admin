@@ -149,6 +149,9 @@ const hiddenOrdersStorageKey = "pitsdog:admin:hidden-orders:v1"
 const soundModeStorageKey = "pitsdog:admin:sound-mode:v1"
 const pixSettingsStorageKey = "pitsdog:admin:pix-settings:v1"
 const localPanelSettingsStorageKey = "pitsdog:admin:local-panel-settings:v1"
+const menuImageMaxSizeMb = 5
+const menuImageMaxSizeBytes = menuImageMaxSizeMb * 1024 * 1024
+const menuImageMimeTypes = new Set(["image/jpeg", "image/png"])
 
 const emptyCategoryDraft: MenuCategoryDraft = {
   descricao: "",
@@ -177,6 +180,7 @@ const emptyProductDraft: MenuProductDraft = {
 const emptyAdditionalDraft: MenuAdditionalDraft = {
   ativo: true,
   descricao: "",
+  imagem: "",
   nome: "",
   preco: 0,
 }
@@ -321,20 +325,28 @@ function numberInputValue(value: number) {
   return value === 0 ? "" : value
 }
 
-function readImageFile(event: ChangeEvent<HTMLInputElement>, onImageReady: (image: string) => void) {
+function selectMenuImageFile(
+  event: ChangeEvent<HTMLInputElement>,
+  onImageSelected: (imageFile: File, previewUrl: string) => void,
+  onError: (message: string) => void
+) {
   const file = event.target.files?.[0]
 
   if (!file) return
 
-  const reader = new FileReader()
-
-  reader.onload = () => {
-    if (typeof reader.result === "string") {
-      onImageReady(reader.result)
-    }
+  if (!menuImageMimeTypes.has(file.type)) {
+    onError("Use uma imagem JPEG ou PNG.")
+    event.target.value = ""
+    return
   }
 
-  reader.readAsDataURL(file)
+  if (file.size > menuImageMaxSizeBytes) {
+    onError(`A imagem pode ter no máximo ${menuImageMaxSizeMb}MB.`)
+    event.target.value = ""
+    return
+  }
+
+  onImageSelected(file, URL.createObjectURL(file))
   event.target.value = ""
 }
 
@@ -1776,6 +1788,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setCategoryDraft({
       ativo: category.ativo,
       descricao: category.descricao,
+      imageFile: null,
       imagem: category.imagem ?? "",
       nome: category.nome,
       ordem: category.ordem,
@@ -1803,6 +1816,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         await menuAdmin.updateCategory(category.id, {
           ativo: nextStatus,
           descricao: category.descricao,
+          imageFile: null,
           imagem: category.imagem ?? "",
           nome: category.nome,
           ordem: category.ordem,
@@ -1857,6 +1871,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       flavorRequired: product.flavorRequired ?? false,
       hasFlavors: product.hasFlavors ?? false,
       highlight: product.highlight ?? product.subtitle ?? "",
+      imageFile: null,
       imagem: product.imageUrl ?? product.imagem ?? "",
       maxFlavors: product.maxFlavors ?? 1,
       nome: product.nome,
@@ -1892,6 +1907,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           flavorRequired: product.flavorRequired ?? false,
           hasFlavors: product.hasFlavors ?? false,
           highlight: product.highlight ?? product.subtitle ?? "",
+          imageFile: null,
           imagem: product.imageUrl ?? product.imagem ?? "",
           maxFlavors: product.maxFlavors ?? 1,
           nome: product.nome,
@@ -1942,6 +1958,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setAdditionalDraft({
       ativo: additional.ativo,
       descricao: additional.descricao,
+      imageFile: null,
+      imagem: additional.imageUrl ?? additional.imagem ?? "",
       nome: additional.nome,
       preco: additional.preco,
     })
@@ -1968,6 +1986,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
         await menuAdmin.updateAdditional(additional.id, {
           ativo: nextStatus,
           descricao: additional.descricao,
+          imageFile: null,
+          imagem: additional.imageUrl ?? additional.imagem ?? "",
           nome: additional.nome,
           preco: additional.preco,
         })
@@ -3302,22 +3322,29 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
                   <div className="block">
                     <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
-                    <input
-                      value={categoryDraft.imagem}
-                      onChange={(event) => setCategoryDraft({ ...categoryDraft, imagem: event.target.value })}
-                      placeholder="/Sobremesas/banner.jpeg"
-                      className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    <label className="mt-2 inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                    {categoryDraft.imagem && (
+                      <div className="mb-2 overflow-hidden rounded-lg border border-white/10 bg-black/[0.24]">
+                        <img src={categoryDraft.imagem} alt="" className="h-24 w-full object-cover" />
+                      </div>
+                    )}
+                    <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                       <Upload size={14} />
-                      Escolher imagem
+                      {categoryDraft.imageFile ? categoryDraft.imageFile.name : "Escolher JPEG/PNG"}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png"
                         className="hidden"
-                        onChange={(event) => readImageFile(event, (image) => setCategoryDraft((currentDraft) => ({ ...currentDraft, imagem: image })))}
+                        onChange={(event) => selectMenuImageFile(
+                          event,
+                          (imageFile, previewUrl) => setCategoryDraft((currentDraft) => ({ ...currentDraft, imageFile, imagem: previewUrl })),
+                          (message) => {
+                            setCategoryFeedback(message)
+                            showNotice(message)
+                          }
+                        )}
                       />
                     </label>
+                    <p className="mt-1 text-[11px] font-bold text-zinc-500">JPEG ou PNG, até 5MB.</p>
                   </div>
 
                   <label className="block">
@@ -3500,22 +3527,26 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
                     <div className="block">
                       <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
-                      <input
-                        value={productDraft.imagem}
-                        onChange={(event) => setProductDraft({ ...productDraft, imagem: event.target.value })}
-                        placeholder="https://..."
-                        className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                      <label className="mt-2 inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                      {productDraft.imagem && (
+                        <div className="mb-2 overflow-hidden rounded-lg border border-white/10 bg-black/[0.24]">
+                          <img src={productDraft.imagem} alt="" className="h-24 w-full object-cover" />
+                        </div>
+                      )}
+                      <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                         <Upload size={14} />
-                        Escolher imagem
+                        {productDraft.imageFile ? productDraft.imageFile.name : "Escolher JPEG/PNG"}
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png"
                           className="hidden"
-                          onChange={(event) => readImageFile(event, (image) => setProductDraft((currentDraft) => ({ ...currentDraft, imagem: image })))}
+                          onChange={(event) => selectMenuImageFile(
+                            event,
+                            (imageFile, previewUrl) => setProductDraft((currentDraft) => ({ ...currentDraft, imageFile, imagem: previewUrl })),
+                            showNotice
+                          )}
                         />
                       </label>
+                      <p className="mt-1 text-[11px] font-bold text-zinc-500">JPEG ou PNG, até 5MB.</p>
                     </div>
 
                     <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
@@ -3726,6 +3757,29 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preço</span>
 	                      <input type="number" value={numberInputValue(additionalDraft.preco)} onChange={(event) => setAdditionalDraft({ ...additionalDraft, preco: Number(event.target.value) })} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50" />
                     </label>
+                    <div className="block">
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
+                      {additionalDraft.imagem && (
+                        <div className="mb-2 overflow-hidden rounded-lg border border-white/10 bg-black/[0.24]">
+                          <img src={additionalDraft.imagem} alt="" className="h-24 w-full object-cover" />
+                        </div>
+                      )}
+                      <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                        <Upload size={14} />
+                        {additionalDraft.imageFile ? additionalDraft.imageFile.name : "Escolher JPEG/PNG"}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png"
+                          className="hidden"
+                          onChange={(event) => selectMenuImageFile(
+                            event,
+                            (imageFile, previewUrl) => setAdditionalDraft((currentDraft) => ({ ...currentDraft, imageFile, imagem: previewUrl })),
+                            showNotice
+                          )}
+                        />
+                      </label>
+                      <p className="mt-1 text-[11px] font-bold text-zinc-500">JPEG ou PNG, até 5MB.</p>
+                    </div>
                     <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
                       Adicional ativo
                       <input type="checkbox" checked={additionalDraft.ativo} onChange={(event) => setAdditionalDraft({ ...additionalDraft, ativo: event.target.checked })} className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50" />

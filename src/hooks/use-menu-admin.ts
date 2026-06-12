@@ -28,6 +28,48 @@ function sortByName<T extends { nome: string }>(items: T[]) {
   return [...items].sort((first, second) => first.nome.localeCompare(second.nome))
 }
 
+async function uploadCategoryImage(category: MenuCategory, draft: MenuCategoryDraft) {
+  if (!draft.imageFile) return category
+
+  const imageUrl = await menuApi.uploadImage("categoria", category.id, draft.imageFile)
+
+  if (!imageUrl) return category
+
+  return {
+    ...category,
+    imageUrl,
+    imagem: imageUrl,
+  }
+}
+
+async function uploadProductImage(product: MenuProduct, draft: MenuProductDraft) {
+  if (!draft.imageFile) return product
+
+  const imageUrl = await menuApi.uploadImage("produto", product.id, draft.imageFile)
+
+  if (!imageUrl) return product
+
+  return {
+    ...product,
+    imageUrl,
+    imagem: imageUrl,
+  }
+}
+
+async function uploadAdditionalImage(additional: MenuAdditional, draft: MenuAdditionalDraft) {
+  if (!draft.imageFile) return additional
+
+  const imageUrl = await menuApi.uploadImage("adicional", additional.id, draft.imageFile)
+
+  if (!imageUrl) return additional
+
+  return {
+    ...additional,
+    imageUrl,
+    imagem: imageUrl,
+  }
+}
+
 function readMenuCache(): MenuCache {
   try {
     const cachedMenu = window.localStorage.getItem(menuCacheKey)
@@ -110,7 +152,7 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   }, [additionals, categories, products])
 
   async function createCategory(category: MenuCategoryDraft) {
-    const createdCategory = await menuApi.createCategory(category)
+    const createdCategory = await uploadCategoryImage(await menuApi.createCategory(category), category)
 
     setCategories((currentCategories) => sortCategories([...currentCategories, createdCategory]))
     setStatus("online")
@@ -118,7 +160,7 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   }
 
   async function updateCategory(id: number, category: MenuCategoryDraft) {
-    const updatedCategory = await menuApi.updateCategory(id, category)
+    const updatedCategory = await uploadCategoryImage(await menuApi.updateCategory(id, category), category)
 
     setCategories((currentCategories) =>
       sortCategories(currentCategories.map((currentCategory) => (
@@ -167,7 +209,7 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   }
 
   async function createProduct(product: MenuProductDraft) {
-    const createdProduct = await menuApi.createProduct(product)
+    const createdProduct = await uploadProductImage(await menuApi.createProduct(product), product)
     const productWithDraftSubtitle = {
       ...createdProduct,
       destaque: createdProduct.destaque || Boolean(product.highlight.trim()),
@@ -181,7 +223,7 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   }
 
   async function updateProduct(id: number, product: MenuProductDraft) {
-    const updatedProduct = await menuApi.updateProduct(id, product)
+    const updatedProduct = await uploadProductImage(await menuApi.updateProduct(id, product), product)
     const productWithDraftSubtitle = {
       ...updatedProduct,
       destaque: updatedProduct.destaque || Boolean(product.highlight.trim()),
@@ -232,7 +274,7 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   }
 
   async function createAdditional(additional: MenuAdditionalDraft) {
-    const createdAdditional = await menuApi.createAdditional(additional)
+    const createdAdditional = await uploadAdditionalImage(await menuApi.createAdditional(additional), additional)
 
     setAdditionals((currentAdditionals) => sortByName([...currentAdditionals, createdAdditional]))
     setStatus("online")
@@ -240,7 +282,7 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   }
 
   async function updateAdditional(id: number, additional: MenuAdditionalDraft) {
-    const updatedAdditional = await menuApi.updateAdditional(id, additional)
+    const updatedAdditional = await uploadAdditionalImage(await menuApi.updateAdditional(id, additional), additional)
 
     setAdditionals((currentAdditionals) =>
       sortByName(currentAdditionals.map((currentAdditional) => (

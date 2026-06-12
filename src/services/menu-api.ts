@@ -10,7 +10,6 @@ import { adminApiBaseUrl, adminRequest } from "./admin-api"
 
 export const hasMenuBackend = Boolean(adminApiBaseUrl)
 
-const defaultCategoryImageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c"
 const productsAdminPath = "/admin/produtos"
 const subtitleMarkerPrefix = "@@PITS_SUBTITLE:"
 const subtitleMarkerSuffix = "@@"
@@ -18,6 +17,7 @@ const invisibleSubtitlePrefix = "\u2063pits-subtitle:"
 const invisibleSubtitleSuffix = "\u2063"
 
 type BackendCategory = Omit<MenuCategory, "imagem" | "imageUrl"> & {
+  imageUrl?: string | null
   imagemUrl?: string | null
 }
 
@@ -28,6 +28,7 @@ type BackendProduct = Omit<MenuProduct, "imagem" | "imageUrl"> & {
   flavorIds?: string[]
   flavorRequired?: boolean
   hasFlavors?: boolean
+  imageUrl?: string | null
   imagemUrl?: string | null
   maxFlavors?: number
   permiteAdicionais?: boolean
@@ -36,11 +37,32 @@ type BackendProduct = Omit<MenuProduct, "imagem" | "imageUrl"> & {
 
 type BackendAdditional = {
   id: number
+  imageUrl?: string | null
+  imagemUrl?: string | null
   nomedAicional?: string
   nomeAdicional?: string
   nome?: string
   preco: number
   ativo: boolean
+}
+
+type MenuImageTarget = "adicional" | "categoria" | "combo" | "produto"
+
+type UploadMenuImageResponse = {
+  imageUrl?: string | null
+  imagemUrl?: string | null
+  url?: string | null
+}
+
+const menuImageUploadPaths: Record<MenuImageTarget, (id: number) => string> = {
+  adicional: (id) => `/admin/adicionais/${id}/imagem`,
+  categoria: (id) => `/admin/categorias/${id}/imagem`,
+  combo: (id) => `/admin/combos/${id}/imagem`,
+  produto: (id) => `/admin/produtos/${id}/imagem`,
+}
+
+function readImageUrl(item: { imageUrl?: string | null; imagemUrl?: string | null; imagem?: string | null }) {
+  return item.imageUrl ?? item.imagemUrl ?? item.imagem ?? null
 }
 
 function asArray<T>(response: T[] | { content?: T[]; data?: T[] }) {
@@ -68,8 +90,8 @@ function mapCategory(category: BackendCategory): MenuCategory {
     ...category,
     id: Number(category.id),
     ordem: Number(category.ordem ?? 0),
-    imageUrl: category.imagemUrl ?? null,
-    imagem: category.imagemUrl ?? null,
+    imageUrl: readImageUrl(category),
+    imagem: readImageUrl(category),
   }
 }
 
@@ -166,8 +188,8 @@ function mapProduct(product: BackendProduct): MenuProduct {
     permiteAdicionais: product.permiteAdicionais ?? false,
     maxFlavors: product.maxFlavors ?? 1,
     subtitle: product.subtitle ?? highlight,
-    imageUrl: product.imagemUrl ?? null,
-    imagem: product.imagemUrl ?? null,
+    imageUrl: readImageUrl(product),
+    imagem: readImageUrl(product),
   }
 }
 
@@ -176,6 +198,8 @@ function mapAdditional(additional: BackendAdditional): MenuAdditional {
     ativo: additional.ativo,
     descricao: "",
     id: Number(additional.id),
+    imageUrl: readImageUrl(additional),
+    imagem: readImageUrl(additional),
     nome: additional.nomeAdicional ?? additional.nomedAicional ?? additional.nome ?? "Adicional",
     preco: additional.preco,
   }
@@ -193,7 +217,6 @@ export const menuApi = {
       body: JSON.stringify({
         ativo: category.ativo,
         descricao: category.descricao,
-        imagemUrl: category.imagem.trim() || defaultCategoryImageUrl,
         nome: category.nome,
         ordem: category.ordem,
       }),
@@ -206,7 +229,6 @@ export const menuApi = {
       body: JSON.stringify({
         ativo: category.ativo,
         descricao: category.descricao,
-        imagemUrl: category.imagem.trim() || defaultCategoryImageUrl,
         nome: category.nome,
         ordem: category.ordem,
       }),
@@ -247,7 +269,6 @@ export const menuApi = {
         flavorIds: product.flavorIds ?? [],
         flavorRequired: product.flavorRequired ?? false,
         hasFlavors: product.hasFlavors ?? false,
-        imagemUrl: product.imagem,
         maxFlavors: product.maxFlavors ?? 1,
         nome: product.nome,
         permiteAdicionais: product.permiteAdicionais,
@@ -273,7 +294,6 @@ export const menuApi = {
         flavorIds: product.flavorIds ?? [],
         flavorRequired: product.flavorRequired ?? false,
         hasFlavors: product.hasFlavors ?? false,
-        imagemUrl: product.imagem,
         maxFlavors: product.maxFlavors ?? 1,
         nome: product.nome,
         permiteAdicionais: product.permiteAdicionais,
@@ -337,5 +357,18 @@ export const menuApi = {
     await adminRequest<void>(`/admin/adicionais/${id}`, {
       method: "DELETE",
     })
+  },
+
+  async uploadImage(target: MenuImageTarget, id: number, imageFile: File) {
+    const body = new FormData()
+
+    body.append("imagem", imageFile)
+
+    const response = await adminRequest<UploadMenuImageResponse>(menuImageUploadPaths[target](id), {
+      body,
+      method: "POST",
+    })
+
+    return response.imageUrl ?? response.imagemUrl ?? response.url ?? null
   }
 }
