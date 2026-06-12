@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { hasMenuBackend, menuApi } from "../services/menu-api"
+import { MenuImageUploadError, hasMenuBackend, menuApi, menuImageUploadFailedEvent } from "../services/menu-api"
 import type {
   MenuAdditional,
   MenuAdditionalDraft,
@@ -31,7 +31,7 @@ function sortByName<T extends { nome: string }>(items: T[]) {
 async function uploadCategoryImage(category: MenuCategory, draft: MenuCategoryDraft) {
   if (!draft.imageFile) return category
 
-  const imageUrl = await menuApi.uploadImage("categoria", category.id, draft.imageFile)
+  const imageUrl = await uploadMenuImageSafely("categoria", category.id, draft.imageFile)
 
   if (!imageUrl) return category
 
@@ -45,7 +45,7 @@ async function uploadCategoryImage(category: MenuCategory, draft: MenuCategoryDr
 async function uploadProductImage(product: MenuProduct, draft: MenuProductDraft) {
   if (!draft.imageFile) return product
 
-  const imageUrl = await menuApi.uploadImage("produto", product.id, draft.imageFile)
+  const imageUrl = await uploadMenuImageSafely("produto", product.id, draft.imageFile)
 
   if (!imageUrl) return product
 
@@ -59,7 +59,7 @@ async function uploadProductImage(product: MenuProduct, draft: MenuProductDraft)
 async function uploadAdditionalImage(additional: MenuAdditional, draft: MenuAdditionalDraft) {
   if (!draft.imageFile) return additional
 
-  const imageUrl = await menuApi.uploadImage("adicional", additional.id, draft.imageFile)
+  const imageUrl = await uploadMenuImageSafely("adicional", additional.id, draft.imageFile)
 
   if (!imageUrl) return additional
 
@@ -67,6 +67,25 @@ async function uploadAdditionalImage(additional: MenuAdditional, draft: MenuAddi
     ...additional,
     imageUrl,
     imagem: imageUrl,
+  }
+}
+
+async function uploadMenuImageSafely(target: "adicional" | "categoria" | "produto", id: number, imageFile: File) {
+  try {
+    return await menuApi.uploadImage(target, id, imageFile)
+  } catch (error) {
+    if (error instanceof MenuImageUploadError) {
+      window.dispatchEvent(new CustomEvent(menuImageUploadFailedEvent, {
+        detail: {
+          message: "Dados salvos, mas a API nao conseguiu salvar a imagem agora.",
+          target,
+        },
+      }))
+      console.warn(`[menu-api] Falha ao enviar imagem de ${target} #${id}.`, error.cause)
+      return null
+    }
+
+    throw error
   }
 }
 

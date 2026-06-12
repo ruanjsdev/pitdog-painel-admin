@@ -6,9 +6,10 @@ import type {
   MenuProduct,
   MenuProductDraft,
 } from "../types/menu"
-import { adminApiBaseUrl, adminRequest } from "./admin-api"
+import { AdminApiError, adminApiBaseUrl, adminRequest } from "./admin-api"
 
 export const hasMenuBackend = Boolean(adminApiBaseUrl)
+export const menuImageUploadFailedEvent = "pitsdog:menu-image-upload-failed"
 
 const productsAdminPath = "/admin/produtos"
 const subtitleMarkerPrefix = "@@PITS_SUBTITLE:"
@@ -54,11 +55,25 @@ type UploadMenuImageResponse = {
   url?: string | null
 }
 
+export class MenuImageUploadError extends Error {
+  cause: unknown
+
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : "Erro ao enviar imagem.")
+    this.name = "MenuImageUploadError"
+    this.cause = cause
+  }
+}
+
 const menuImageUploadPaths: Record<MenuImageTarget, (id: number) => string> = {
   adicional: (id) => `/admin/adicionais/${id}/imagem`,
   categoria: (id) => `/admin/categorias/${id}/imagem`,
   combo: (id) => `/admin/combos/${id}/imagem`,
   produto: (id) => `/admin/produtos/${id}/imagem`,
+}
+
+function shouldTryFallbackImageField(error: unknown) {
+  return error instanceof AdminApiError && (error.status === 400 || error.status >= 500)
 }
 
 function readImageUrl(item: { imageUrl?: string | null; imagemUrl?: string | null; imagem?: string | null }) {
@@ -360,15 +375,31 @@ export const menuApi = {
   },
 
   async uploadImage(target: MenuImageTarget, id: number, imageFile: File) {
-    const body = new FormData()
+    async function uploadWithField(fieldName: "file" | "imagem") {
+      const body = new FormData()
 
-    body.append("imagem", imageFile)
+      body.append(fieldName, imageFile)
 
-    const response = await adminRequest<UploadMenuImageResponse>(menuImageUploadPaths[target](id), {
-      body,
-      method: "POST",
-    })
+      const response = await adminRequest<UploadMenuImageResponse>(menuImageUploadPaths[target](id), {
+        body,
+        method: "POST",
+      })
 
-    return response.imageUrl ?? response.imagemUrl ?? response.url ?? null
+      return response.imageUrl ?? response.imagemUrl ?? response.url ?? null
+    }
+
+    try {
+      return await uploadWithField("imagem")
+    } catch (error) {
+      if (!shouldTryFallbackImageField(error)) {
+        throw new MenuImageUploadError(error)
+      }
+
+      try {
+        return await uploadWithField("file")
+      } catch (fallbackError) {
+        throw new MenuImageUploadError(fallbackError)
+      }
+    }
   }
 }
