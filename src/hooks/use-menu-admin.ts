@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { MenuImageUploadError, hasMenuBackend, menuApi, menuImageUploadFailedEvent } from "../services/menu-api"
+import { MenuImageUploadError, hasMenuBackend, menuApi } from "../services/menu-api"
 import type {
   MenuAdditional,
   MenuAdditionalDraft,
@@ -75,14 +75,8 @@ async function uploadMenuImageSafely(target: "adicional" | "categoria" | "produt
     return await menuApi.uploadImage(target, id, imageFile)
   } catch (error) {
     if (error instanceof MenuImageUploadError) {
-      window.dispatchEvent(new CustomEvent(menuImageUploadFailedEvent, {
-        detail: {
-          message: "Dados salvos, mas a API nao conseguiu salvar a imagem agora.",
-          target,
-        },
-      }))
       console.warn(`[menu-api] Falha ao enviar imagem de ${target} #${id}.`, error.cause)
-      return null
+      throw new Error("A imagem não foi salva pela API. A confirmação só aparece quando a imagem também for salva; tente novamente.")
     }
 
     throw error

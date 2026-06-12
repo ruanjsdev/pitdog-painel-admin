@@ -9,8 +9,6 @@ import type {
 import { AdminApiError, adminApiBaseUrl, adminRequest } from "./admin-api"
 
 export const hasMenuBackend = Boolean(adminApiBaseUrl)
-export const menuImageUploadFailedEvent = "pitsdog:menu-image-upload-failed"
-
 const productsAdminPath = "/admin/produtos"
 const subtitleMarkerPrefix = "@@PITS_SUBTITLE:"
 const subtitleMarkerSuffix = "@@"

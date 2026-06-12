@@ -51,7 +51,6 @@ import {
   orderHistoryRetentionDays,
 } from "../lib/order-sync"
 import { printApprovalTickets } from "../services/print-service"
-import { menuImageUploadFailedEvent } from "../services/menu-api"
 import {
   fetchWhatsAppBotStatus,
   fetchWhatsAppBotSettings,
@@ -802,18 +801,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   useEffect(() => {
-    function handleMenuImageUploadFailed(event: Event) {
-      const detail = event instanceof CustomEvent ? event.detail : null
-      const message =
-        typeof detail?.message === "string"
-          ? detail.message
-          : "Dados salvos, mas a API nao conseguiu salvar a imagem agora."
-
-      showNotice(message)
-      showStatusToast(message, 9000)
-      setCategoryFeedback(message)
-    }
-
     function handleRuntimeError(event: ErrorEvent) {
       setErrorDialog({
         message: event.message || "Erro inesperado no painel.",
@@ -836,12 +823,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
       })
     }
 
-    window.addEventListener(menuImageUploadFailedEvent, handleMenuImageUploadFailed)
     window.addEventListener("error", handleRuntimeError)
     window.addEventListener("unhandledrejection", handleUnhandledRejection)
 
     return () => {
-      window.removeEventListener(menuImageUploadFailedEvent, handleMenuImageUploadFailed)
       window.removeEventListener("error", handleRuntimeError)
       window.removeEventListener("unhandledrejection", handleUnhandledRejection)
     }
@@ -1790,8 +1775,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
       setEditingCategoryId(null)
     } catch (error) {
       console.error("Erro ao salvar categoria", error)
-      showNotice("Não foi possível salvar a categoria na API agora.")
-      setCategoryFeedback("Não foi possível salvar a categoria na API agora. Veja o console para o erro da API.")
+      const message = error instanceof Error ? error.message : "Não foi possível salvar a categoria na API agora."
+
+      showNotice(message)
+      setCategoryFeedback(message)
     } finally {
       setCategorySaving(false)
       setActionOverlayLabel("")
@@ -4536,9 +4523,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         : selectedOrder.delivery === "Mesa"
                                           ? "pronto"
                                           : "pronto"
+                                      const readyChanges: Partial<Order> = selectedOrder.delivery === "Mesa"
+                                        ? { backendStatus: "PRONTO", status: nextStatus }
+                                        : { status: nextStatus }
 
                                       return updateSelectedOrder(
-                                        { status: nextStatus },
+                                        readyChanges,
                                         selectedOrder.delivery === "Delivery"
                                           ? `Pedido #${selectedOrder.id} saiu para entrega.`
                                           : selectedOrder.delivery === "Mesa"
