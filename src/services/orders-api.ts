@@ -124,13 +124,37 @@ const panelStatusToBackendStatus: Record<Order["status"], BackendOrderStatus> = 
   saiu: "SAIU_PARA_ENTREGA",
 }
 
-async function patchOrderStatus(id: number, status: BackendOrderStatus) {
+async function patchOrderStatusWithBody(id: number, body: unknown) {
   const response = await adminRequest<BackendOrder | null>(`/admin/pedidos/${id}/status`, {
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(body),
     method: "PATCH",
   })
 
   return response ? mapBackendOrder(response) : null
+}
+
+async function patchOrderStatus(id: number, status: BackendOrderStatus) {
+  const payloads: unknown[] = [
+    { status },
+    { statusPedido: status },
+    { novoStatus: status },
+    status,
+  ]
+  let lastError: unknown = null
+
+  for (const payload of payloads) {
+    try {
+      return await patchOrderStatusWithBody(id, payload)
+    } catch (error) {
+      lastError = error
+
+      if (!(error instanceof AdminApiError) || error.status !== 400) {
+        throw error
+      }
+    }
+  }
+
+  throw lastError
 }
 
 const paymentLabels: Record<string, string> = {
@@ -417,15 +441,7 @@ export const ordersApi = {
 
       if (!backendStatus) throw new Error("Status invalido.")
 
-      try {
-        return await patchOrderStatus(id, backendStatus) ?? changes as Order
-      } catch (error) {
-        if (backendStatus === "PRONTO" && error instanceof AdminApiError && error.status >= 400) {
-          return await patchOrderStatus(id, "PRONTO_PARA_RETIRADA") ?? changes as Order
-        }
-
-        throw error
-      }
+      return await patchOrderStatus(id, backendStatus) ?? changes as Order
     }
 
     if (changes.discount !== undefined || changes.discountPercent !== undefined || changes.discountReason !== undefined) {

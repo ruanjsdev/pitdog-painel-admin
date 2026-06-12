@@ -4523,7 +4523,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         : selectedOrder.delivery === "Mesa"
                                           ? "pronto"
                                           : "pronto"
-                                      const readyChanges: Partial<Order> = selectedOrder.delivery === "Mesa"
+                                      const readyChanges: Partial<Order> = selectedOrder.delivery === "Mesa" || selectedOrder.delivery === "Retirada"
                                         ? { backendStatus: "PRONTO", status: nextStatus }
                                         : { status: nextStatus }
 
