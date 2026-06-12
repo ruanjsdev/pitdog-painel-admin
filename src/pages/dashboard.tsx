@@ -2185,7 +2185,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   return (
     <MainLayout>
-      <div className={`flex h-full w-full flex-col overflow-hidden px-3 py-3 sm:px-4 lg:px-5 ${storeOpen ? "bg-white/[0.03]" : "bg-red-950/35"
+      <div className={`dashboard-shell flex h-full w-full flex-col overflow-hidden px-3 py-3 sm:px-4 lg:px-5 ${storeOpen ? "bg-white/[0.03]" : "bg-red-950/35"
         } ${localPanelSettings.compactMode ? "text-[0.93rem]" : ""}`}>
         {statusToast && (
           <div
@@ -4420,7 +4420,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         </ClientsPanel>
 
         {showingOrdersPanel && (
-          <main className="mt-3 grid min-h-0 flex-1 gap-3 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_560px] 2xl:grid-cols-[240px_minmax(0,1fr)_620px]">
+          <main className="dashboard-orders-grid mt-3 grid min-h-0 flex-1 gap-3 overflow-hidden">
             <OrderFilters
               activeFilter={activeFilter}
               filters={filters}

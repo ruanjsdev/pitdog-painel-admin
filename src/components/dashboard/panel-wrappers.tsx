@@ -20,7 +20,7 @@ export function ClientsPanel({ children, open }: { children: ReactNode; open: bo
 
 export function OrderDetails({ children }: { children: ReactNode }) {
   return (
-    <aside className="min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-4">
+    <aside className="dashboard-order-details min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-4">
       {children}
     </aside>
   )
