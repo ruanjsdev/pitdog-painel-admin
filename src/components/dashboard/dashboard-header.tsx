@@ -223,7 +223,7 @@ export function DashboardHeader({
         ? "border-white/10 bg-[rgba(18,11,7,0.92)]"
         : "border-red-300/30 bg-[rgba(75,14,14,0.92)]"
     }`}>
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <img
             src={logoUrl}
@@ -240,9 +240,7 @@ export function DashboardHeader({
         </div>
 
         <nav
-          className={`grid gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 ${
-            panelSettings.compactNavigation ? "xl:w-[880px]" : "xl:w-[1040px]"
-          }`}
+          className="flex min-w-0 flex-1 gap-2 overflow-x-auto rounded-lg border border-white/10 bg-black/[0.22] p-1"
           aria-label="Navegação principal"
         >
           {navigationItems.map((item) => {
@@ -254,13 +252,13 @@ export function DashboardHeader({
                 key={item.value}
                 type="button"
                 onClick={() => onShowPanel(item.value)}
-                className={`flex items-center gap-3 rounded-lg px-3 text-left transition ${
+                className={`flex min-w-[142px] shrink-0 items-center gap-3 rounded-lg px-3 text-left transition ${
                   isActive
                     ? "bg-orange-400 text-black shadow-[0_14px_32px_rgba(255,106,0,0.22)]"
                     : "text-zinc-300 hover:bg-white/[0.07] hover:text-white"
-                } ${panelSettings.compactNavigation ? "min-h-11" : "min-h-14"}`}
+                } ${panelSettings.compactNavigation ? "min-h-10" : "min-h-12"}`}
               >
-                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
+                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
                   isActive ? "bg-black/15" : "bg-white/[0.06]"
                 }`}>
                   <Icon size={17} />
@@ -445,6 +443,24 @@ export function DashboardHeader({
                       <div className="text-left">
                         <strong className="block text-sm">Gerenciar Motoboys</strong>
                       </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onShowPanel("configuracoes")}
+                      className="mt-2 flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-black text-white transition hover:bg-white/10"
+                      role="menuitem"
+                    >
+                      <Printer size={16} />
+                      Configurar impressora
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onShowPanel("zap")}
+                      className="mt-2 flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-black text-white transition hover:bg-white/10"
+                      role="menuitem"
+                    >
+                      <ExternalLink size={16} />
+                      Bot do Zap
                     </button>
                   </div>
 
