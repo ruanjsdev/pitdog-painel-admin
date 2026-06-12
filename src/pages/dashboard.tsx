@@ -222,7 +222,22 @@ function readSoundMode() {
 
 function readPixSettings() {
   const defaultPixSettings = {
+    botActive: true,
+    greetingCooldownHours: 4,
+    greetingMessage: "🍟 *Bem-vindo ao Pits Dog!* 🍔\n\nOlá! Que bom ter você por aqui.\n\nPara agilizar seu atendimento, você pode dar uma olhada em nosso cardápio e fazer seu pedido diretamente por este link:\n📍 {{menu_link}}\n\nSe precisar de ajuda, é só chamar! 😉",
+    menuLink: "https://pitsdog-cardapio-oficial.onrender.com",
+    orderMessages: {
+      approved: "✅ Seu pedido foi aprovado pelo caixa e já está em preparo!\n\nEstamos caprichando por aqui. Daqui a pouco avisaremos a próxima etapa.",
+      canceled: "❌ Seu pedido foi cancelado.\n\nCaso tenha alguma dúvida, fale com nosso atendimento.",
+      created: "🍔 Olá{{customer_name}}! Recebemos seu pedido no Pits Dog.{{items}}{{total}}\n\n⏳ Seu pedido está aguardando análise e aprovação do caixa.\nAssim que for confirmado, avisamos por aqui. 😉",
+      finished: "✅ Pedido entregue com sucesso!\n\n🍔 Obrigado por comprar no Pits Dog. Volte sempre! ❤️",
+      outForDelivery: "🛵 Seu pedido saiu para entrega!\n\n📍 Fique atento no endereço informado, por gentileza.",
+      preparing: "👨‍🍳 Seu pedido está em preparo!\n\nAssim que avançar, avisamos por aqui.",
+      ready: "🍟 Seu pedido está pronto!\n\nPode retirar no balcão ou aguardar nossa equipe chamar, conforme combinado.",
+    },
     pixKey: "41172968000182",
+    pixPaymentMessage: "💳 Pagamento via PIX\n\nRecebedor:\n{{pix_receiver}}\n\nNa próxima mensagem vou enviar somente a chave PIX para facilitar copiar e colar.",
+    pixProofMessage: "Após realizar o pagamento, envie o comprovante por aqui para o caixa conferir.",
     pixReceiverName: "Pedrinho francisco ferreira araujo - stone ip S.A.",
   }
 
@@ -234,6 +249,10 @@ function readPixSettings() {
 
     return {
       ...settings,
+      orderMessages: {
+        ...defaultPixSettings.orderMessages,
+        ...(settings.orderMessages ?? {}),
+      },
       pixKey: settings.pixKey?.trim() || defaultPixSettings.pixKey,
       pixReceiverName: settings.pixReceiverName?.trim() || defaultPixSettings.pixReceiverName,
     }
@@ -269,6 +288,16 @@ const cashTabLabels: Record<CashTab, string> = {
   refrigerantes: "Refrigerantes",
   todos: "Tudo que saiu",
 }
+
+const whatsappMessageFields = [
+  ["created", "Pedido recebido"],
+  ["approved", "Pedido aprovado"],
+  ["preparing", "Em preparo"],
+  ["ready", "Pedido pronto"],
+  ["outForDelivery", "Saiu para entrega"],
+  ["finished", "Pedido finalizado"],
+  ["canceled", "Pedido cancelado"],
+] as const
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -702,7 +731,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       window.localStorage.setItem(pixSettingsStorageKey, JSON.stringify(settings))
       setPixSettingsFeedback("")
     } catch (error) {
-      setPixSettingsFeedback(error instanceof Error ? error.message : "Não foi possível carregar a chave PIX do bot.")
+      setPixSettingsFeedback(error instanceof Error ? error.message : "Não foi possível carregar as mensagens do bot.")
     }
   }
 
@@ -715,10 +744,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
       setPixSettings(settings)
       window.localStorage.setItem(pixSettingsStorageKey, JSON.stringify(settings))
-      setPixSettingsFeedback("Chave PIX salva no bot.")
-      showStatusToast("PIX salvo")
+      setPixSettingsFeedback("Mensagens e PIX salvos no bot.")
+      showStatusToast("Bot atualizado")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível salvar a chave PIX."
+      const message = error instanceof Error ? error.message : "Não foi possível salvar as mensagens do bot."
 
       window.localStorage.setItem(pixSettingsStorageKey, JSON.stringify(pixSettings))
       setPixSettingsFeedback(`${message} Uma cópia ficou salva neste painel.`)
@@ -3519,6 +3548,96 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </div>
               </div>
             </div>
+
+            <div className="mt-4 rounded-lg border border-white/10 bg-black/[0.18] p-4">
+              <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Edição de mensagens</p>
+                  <h3 className="text-lg font-black text-white">Textos enviados pelo bot</h3>
+                </div>
+                <button
+                  type="button"
+                  disabled={pixSettingsSaving}
+                  onClick={() => void savePixSettings()}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Save size={15} />
+                  {pixSettingsSaving ? "Salvando..." : "Salvar mensagens"}
+                </button>
+              </div>
+
+              {pixSettingsFeedback && (
+                <p className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-400/[0.08] px-3 py-2 text-xs font-bold text-emerald-100/80">
+                  {pixSettingsFeedback}
+                </p>
+              )}
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Chave PIX</span>
+                  <input
+                    value={pixSettings.pixKey ?? ""}
+                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixKey: event.target.value }))}
+                    placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
+                    className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Nome do recebedor PIX</span>
+                  <input
+                    value={pixSettings.pixReceiverName ?? ""}
+                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixReceiverName: event.target.value }))}
+                    className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none focus:border-orange-300/60"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                <label className="block xl:col-span-2">
+                  <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Mensagem de saudação</span>
+                  <textarea
+                    value={pixSettings.greetingMessage ?? ""}
+                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, greetingMessage: event.target.value }))}
+                    className="min-h-36 w-full resize-y rounded-lg border border-white/10 bg-black/[0.28] px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Mensagem antes da chave PIX</span>
+                  <textarea
+                    value={pixSettings.pixPaymentMessage ?? ""}
+                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixPaymentMessage: event.target.value }))}
+                    className="min-h-32 w-full resize-y rounded-lg border border-white/10 bg-black/[0.28] px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Mensagem após a chave PIX</span>
+                  <textarea
+                    value={pixSettings.pixProofMessage ?? ""}
+                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixProofMessage: event.target.value }))}
+                    className="min-h-32 w-full resize-y rounded-lg border border-white/10 bg-black/[0.28] px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                {whatsappMessageFields.map(([key, label]) => (
+                  <label key={key} className="block">
+                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">{label}</span>
+                    <textarea
+                      value={pixSettings.orderMessages?.[key] ?? ""}
+                      onChange={(event) => setPixSettings((currentSettings) => ({
+                        ...currentSettings,
+                        orderMessages: {
+                          ...(currentSettings.orderMessages ?? {}),
+                          [key]: event.target.value,
+                        },
+                      }))}
+                      className="min-h-32 w-full resize-y rounded-lg border border-white/10 bg-black/[0.28] px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
           </section>
         )}
 
@@ -3577,47 +3696,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   Este mês
                 </button>
               </div>
-            </div>
-
-            <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-400/[0.07] p-3">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">PIX do estabelecimento</p>
-                  <label className="mt-2 block text-xs font-black text-zinc-300" htmlFor="pix-key">
-                    Chave PIX enviada pelo bot
-                  </label>
-                  <input
-                    id="pix-key"
-                    value={pixSettings.pixKey ?? ""}
-                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixKey: event.target.value }))}
-                    placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
-                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/60"
-                  />
-                </div>
-                <div className="w-full xl:w-64">
-                  <label className="block text-xs font-black text-zinc-300" htmlFor="pix-receiver">
-                    Nome do recebedor
-                  </label>
-                  <input
-                    id="pix-receiver"
-                    value={pixSettings.pixReceiverName ?? "Pedrinho francisco ferreira araujo - stone ip S.A."}
-                    onChange={(event) => setPixSettings((currentSettings) => ({ ...currentSettings, pixReceiverName: event.target.value }))}
-                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none focus:border-emerald-300/60"
-                  />
-                </div>
-                <button
-                  type="button"
-                  disabled={pixSettingsSaving}
-                  onClick={() => void savePixSettings()}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Save size={15} />
-                  {pixSettingsSaving ? "Salvando..." : "Salvar PIX"}
-                </button>
-              </div>
-              {pixSettingsFeedback && (
-                <p className="mt-2 text-xs font-bold text-emerald-100/80">{pixSettingsFeedback}</p>
-              )}
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -25,7 +25,18 @@ export type WhatsAppBotSettings = {
   greetingCooldownHours?: number
   greetingMessage?: string
   menuLink?: string
+  orderMessages?: {
+    approved?: string
+    canceled?: string
+    created?: string
+    finished?: string
+    outForDelivery?: string
+    preparing?: string
+    ready?: string
+  }
   pixKey?: string
+  pixPaymentMessage?: string
+  pixProofMessage?: string
   pixReceiverName?: string
 }
 
