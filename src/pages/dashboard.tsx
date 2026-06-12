@@ -79,7 +79,7 @@ type OrderFilter = "todos" | "mesa" | "retirada" | "entrega"
 type StatusFilter = "todos" | Order["status"]
 type MenuPanelSection = "categorias" | "produtos" | "adicionais"
 type CashTab = "todos" | "hamburgueres" | "cachorros" | "refrigerantes" | "adicionais" | "outros"
-type MainPanel = "dashboard" | "pedidos" | "produtos" | "motoboys" | "configuracoes" | "cardápio" | "caixa" | "clientes" | "zap"
+type MainPanel = "dashboard" | "pedidos" | "produtos" | "motoboys" | "configuracoes" | "cardápio" | "caixa" | "clientes" | "limpeza" | "zap"
 type OrderDraft = Pick<Order, "customer" | "delivery" | "items" | "notes" | "payment" | "phone" | "total"> & {
   address: string
   changeFor: number
@@ -637,6 +637,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [menuPanelOpen, setMenuPanelOpen] = useState(false)
   const [cashPanelOpen, setCashPanelOpen] = useState(false)
   const [clientsPanelOpen, setClientsPanelOpen] = useState(false)
+  const [cleanupPanelOpen, setCleanupPanelOpen] = useState(false)
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
   const [deliveryPeoplePanelOpen, setDeliveryPeoplePanelOpen] = useState(false)
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false)
@@ -663,6 +664,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(defaultPrinterConfig)
   const [printerFeedback, setPrinterFeedback] = useState("")
   const [printerLoading, setPrinterLoading] = useState(false)
+  const [cleanupStep, setCleanupStep] = useState(0)
+  const [cleanupKeyword, setCleanupKeyword] = useState("")
   const [clientNotes, setClientNotes] = useState<Record<string, string>>(() => {
     try {
       return JSON.parse(window.localStorage.getItem("pitsdog:admin:client-notes:v1") ?? "{}") as Record<string, string>
@@ -1255,7 +1258,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setCourierFeedback(`${courier.name} excluído deste painel.`)
   }
 
-  function hideAllLoadedOrdersWithConfirmations() {
+  function hideAllLoadedOrders() {
     const totalOrders = visibleOrderList.length
 
     if (totalOrders === 0) {
@@ -1263,24 +1266,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       return
     }
 
-    const confirmations = [
-      `Você vai ocultar ${totalOrders} pedidos deste painel. Continuar?`,
-      "Isso vai zerar dashboard, caixa, relatórios e clientes neste navegador. Tem certeza?",
-      "Use isso apenas para remover pedidos de teste antes da entrega ao Pedrinho. Confirmar?",
-      "Os pedidos não serão apagados do backend, mas ficarão escondidos neste painel. Prosseguir?",
-      "Quinta confirmação: você assume que esta limpeza é intencional e quer continuar?",
-    ]
-
-    for (const message of confirmations) {
-      if (!window.confirm(message)) {
-        showNotice("Limpeza cancelada. Nenhum pedido foi ocultado.")
-        return
-      }
-    }
-
-    const keyword = window.prompt('Última confirmação: digite "Pedrinho" para ocultar os pedidos.')
-
-    if (keyword !== "Pedrinho") {
+    if (cleanupKeyword !== "Pedrinho") {
       showNotice("Palavra-chave incorreta. Limpeza cancelada.")
       return
     }
@@ -1288,6 +1274,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
     const keysToHide = visibleOrderList.map((order) => getOrderKey(order))
 
     setHiddenOrderKeys((currentKeys) => [...new Set([...currentKeys, ...keysToHide])])
+    setCleanupKeyword("")
+    setCleanupStep(0)
     setSelectedOrderId(undefined)
     showStatusToast(`${totalOrders} pedidos ocultados deste painel.`)
   }
@@ -1298,9 +1286,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
       return
     }
 
-    if (!window.confirm(`Restaurar ${hiddenOrderKeys.length} pedidos ocultos para este painel?`)) return
-
     setHiddenOrderKeys([])
+    setCleanupKeyword("")
+    setCleanupStep(0)
     showStatusToast("Pedidos ocultos restaurados.")
   }
 
@@ -2027,13 +2015,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
       ? "motoboys"
       : menuPanelOpen
         ? "produtos"
-        : zapPanelOpen
-          ? "zap"
-          : cashPanelOpen
-            ? "caixa"
-            : clientsPanelOpen
-              ? "clientes"
-              : ordersView
+        : cleanupPanelOpen
+          ? "limpeza"
+          : zapPanelOpen
+            ? "zap"
+            : cashPanelOpen
+              ? "caixa"
+              : clientsPanelOpen
+                ? "clientes"
+                : ordersView
   const showingOrdersPanel = activePanel === "pedidos" || activePanel === "dashboard"
   const navigationItems = [
     { description: `${counts.novo} novos`, icon: LayoutDashboard, label: "Dashboard", value: "dashboard" },
@@ -2056,6 +2046,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setMenuPanelOpen(Boolean(nextMenuSection))
     setCashPanelOpen(panel === "caixa")
     setClientsPanelOpen(panel === "clientes")
+    setCleanupPanelOpen(panel === "limpeza")
     setZapPanelOpen(panel === "zap")
     setDeliveryPeoplePanelOpen(panel === "motoboys")
     setSettingsPanelOpen(panel === "configuracoes")
@@ -2066,13 +2057,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
           ? "Produtos, categorias e adicionais abertos."
           : panel === "motoboys"
             ? "Gerenciamento de entregadores aberto."
-            : panel === "configuracoes"
-              ? "Configurações técnicas abertas."
-              : panel === "caixa"
-                ? "Fluxo de caixa aberto."
-                : panel === "clientes"
-                  ? "Histórico de clientes aberto."
-                  : "Central do Zap aberta."
+              : panel === "configuracoes"
+                ? "Configurações técnicas abertas."
+                : panel === "limpeza"
+                  ? "Limpeza de pedidos aberta."
+                  : panel === "caixa"
+                    ? "Fluxo de caixa aberto."
+                    : panel === "clientes"
+                      ? "Histórico de clientes aberto."
+                      : "Central do Zap aberta."
     )
   }
 
@@ -2100,6 +2093,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         setMenuPanelOpen(false)
         setCashPanelOpen(false)
         setClientsPanelOpen(false)
+        setCleanupPanelOpen(false)
         setZapPanelOpen(false)
         setDeliveryPeoplePanelOpen(false)
         setSettingsPanelOpen(false)
@@ -2496,7 +2490,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </button>
             </div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,560px)_minmax(0,520px)]">
+            <div className="mt-4 max-w-xl">
               <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
                 <div className="flex items-center gap-2 text-sm font-black text-white">
                   <Printer size={16} className="text-orange-300" />
@@ -2572,39 +2566,126 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </div>
               </article>
 
-              <article className="rounded-lg border border-red-300/25 bg-red-500/[0.07] p-4">
+            </div>
+          </section>
+        )}
+
+        {cleanupPanelOpen && (
+          <section className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-lg border border-red-300/25 bg-[rgba(34,10,10,0.92)] p-4">
+            <div className="flex flex-col gap-3 border-b border-red-300/20 pb-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-300">Área crítica</p>
+                <h2 className="text-xl font-black text-white">Limpeza de pedidos</h2>
+              </div>
+              <button type="button" onClick={() => showPanel("pedidos")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                <LayoutDashboard size={15} />
+                Voltar ao dashboard
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+              <article className="rounded-lg border border-red-300/25 bg-red-500/[0.08] p-4">
                 <div className="flex items-center gap-2 text-sm font-black text-red-100">
                   <AlertTriangle size={16} className="text-red-300" />
-                  Limpeza para entrega
+                  Ocultar pedidos de teste
                 </div>
-                <p className="mt-2 text-xs font-bold leading-5 text-red-100/75">
-                  Oculta todos os pedidos atualmente carregados neste painel para remover testes antes de entregar ao cliente. A ação zera dashboard, caixa, relatórios e clientes neste navegador.
+                <p className="mt-2 text-sm font-bold leading-6 text-red-100/80">
+                  Esta ação oculta os pedidos carregados neste painel para entregar o sistema limpo ao Pedrinho. Dashboard, caixa, relatórios e clientes deixam de mostrar esses pedidos neste navegador.
                 </p>
-                <div className="mt-3 grid gap-2 rounded-lg border border-red-300/15 bg-black/[0.22] p-3 text-xs font-bold text-red-100/80">
+                <div className="mt-3 grid gap-2 rounded-lg border border-red-300/15 bg-black/[0.24] p-3 text-xs font-bold text-red-100/80">
                   <span>Pedidos visíveis agora: <strong className="text-white">{visibleOrderList.length}</strong></span>
                   <span>Pedidos ocultos neste painel: <strong className="text-white">{hiddenOrderKeys.length}</strong></span>
-                  <span>Confirmação final exigida: <strong className="text-white">Pedrinho</strong></span>
+                  <span>Palavra-chave final: <strong className="text-white">Pedrinho</strong></span>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={hideAllLoadedOrdersWithConfirmations}
-                    disabled={visibleOrderList.length === 0}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-400 px-3 text-xs font-black text-black transition hover:bg-red-300 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <XCircle size={15} />
-                    Ocultar pedidos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={restoreHiddenOrders}
-                    disabled={hiddenOrderKeys.length === 0}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <RefreshCw size={15} />
-                    Restaurar ocultos
-                  </button>
+
+                <div className="mt-4 rounded-lg border border-white/10 bg-black/[0.22] p-3">
+                  {cleanupStep < 5 ? (
+                    <>
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-red-200">Confirmação {cleanupStep + 1} de 5</p>
+                      <p className="mt-2 text-sm font-bold leading-6 text-white">
+                        {[
+                          `Você vai ocultar ${visibleOrderList.length} pedidos deste painel. Confirma?`,
+                          "Isso vai zerar visualmente dashboard, caixa, relatórios e clientes. Confirma?",
+                          "Use isso apenas para remover pedidos de teste antes da entrega. Confirma?",
+                          "Os pedidos não serão apagados da API; ficarão ocultos neste painel. Confirma?",
+                          "Última etapa antes da palavra-chave. Você tem certeza absoluta?",
+                        ][cleanupStep]}
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCleanupStep(0)
+                            setCleanupKeyword("")
+                            showNotice("Limpeza cancelada. Nenhum pedido foi ocultado.")
+                          }}
+                          className="min-h-11 rounded-lg border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCleanupStep((step) => Math.min(5, step + 1))}
+                          disabled={visibleOrderList.length === 0}
+                          className="min-h-11 rounded-lg bg-red-400 px-3 text-sm font-black text-black transition hover:bg-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Confirmar etapa
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-red-200">Palavra-chave final</p>
+                      <label className="mt-3 block">
+                        <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Digite Pedrinho</span>
+                        <input
+                          value={cleanupKeyword}
+                          onChange={(event) => setCleanupKeyword(event.target.value)}
+                          className="h-12 w-full rounded-lg border border-white/10 bg-black/[0.32] px-3 text-base font-black text-white outline-none focus:border-red-300/70"
+                        />
+                      </label>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCleanupStep(0)
+                            setCleanupKeyword("")
+                          }}
+                          className="min-h-11 rounded-lg border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10"
+                        >
+                          Voltar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={hideAllLoadedOrders}
+                          disabled={cleanupKeyword !== "Pedrinho" || visibleOrderList.length === 0}
+                          className="min-h-11 rounded-lg bg-red-400 px-3 text-sm font-black text-black transition hover:bg-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Ocultar pedidos
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
+              </article>
+
+              <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
+                <div className="flex items-center gap-2 text-sm font-black text-white">
+                  <RefreshCw size={16} className="text-orange-300" />
+                  Restaurar visualização
+                </div>
+                <p className="mt-2 text-sm font-bold leading-6 text-zinc-400">
+                  Se você ocultar pedidos por engano, pode restaurar todos os pedidos ocultos deste painel.
+                </p>
+                <button
+                  type="button"
+                  onClick={restoreHiddenOrders}
+                  disabled={hiddenOrderKeys.length === 0}
+                  className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw size={15} />
+                  Restaurar {hiddenOrderKeys.length} ocultos
+                </button>
               </article>
             </div>
           </section>

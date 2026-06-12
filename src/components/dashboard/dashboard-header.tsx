@@ -442,7 +442,22 @@ export function DashboardHeader({
                       <div className="text-left">
                         <strong className="block text-sm">Gerenciar Motoboys</strong>
                       </div>
-                    </button>
+	                    </button>
+	                    <button
+	                      type="button"
+	                      onClick={() => {
+	                        setSettingsOpen(false)
+	                        onShowPanel("limpeza")
+	                      }}
+	                      className="mt-2 flex w-full items-center gap-2 rounded-lg border border-red-300/25 bg-red-400/10 px-3 py-2.5 text-sm font-black text-red-100 transition hover:bg-red-400/[0.18]"
+	                      role="menuitem"
+	                    >
+	                      <ShieldCheck size={16} />
+	                      <div className="text-left">
+	                        <strong className="block text-sm">Limpeza de pedidos</strong>
+	                        <span className="block text-[11px] text-red-100/65">Ocultar testes</span>
+	                      </div>
+	                    </button>
 	                    <button
 	                      type="button"
 	                      onClick={() => {
@@ -455,7 +470,7 @@ export function DashboardHeader({
 	                      <Printer size={16} />
 	                      <div className="text-left">
 	                        <strong className="block text-sm">Configurações</strong>
-	                        <span className="block text-[11px] text-zinc-500">Impressora e limpeza</span>
+	                        <span className="block text-[11px] text-zinc-500">Impressora</span>
 	                      </div>
 	                    </button>
                     <button
