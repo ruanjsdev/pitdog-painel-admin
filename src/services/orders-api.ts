@@ -196,6 +196,10 @@ function mapBackendOrder(order: BackendOrder): Order {
     : order.tipoPedido === "MESA"
       ? "Mesa"
       : "Retirada"
+  const isPendingTablePayment =
+    delivery === "Mesa" &&
+    order.statusPagamento === "PENDENTE" &&
+    order.pagamentoConfirmado !== true
   const address = order.tipoPedido === "MESA"
     ? `Mesa ${order.numeroMesa ?? "-"}`
     : order.tipoPedido === "RETIRADA"
@@ -264,14 +268,18 @@ function mapBackendOrder(order: BackendOrder): Order {
       return `${base}${extra}${flavorText}${obs}`
     }),
     notes: "",
-    payment: order.formaPagamento ? paymentLabels[order.formaPagamento] ?? order.formaPagamento : "-",
+    payment: isPendingTablePayment
+      ? "-"
+      : order.formaPagamento
+        ? paymentLabels[order.formaPagamento] ?? order.formaPagamento
+        : "-",
     backendPaymentMethod: order.formaPagamento,
     paymentConfirmed: order.pagamentoConfirmado ?? false,
     paymentConfirmedAt: order.momentoPagamentoConfirmado ?? undefined,
     paymentStatus: order.statusPagamento ?? "PENDENTE",
     paymentChangeFor: order.trocoPara ?? undefined,
     paymentChangeValue: order.valorTroco ?? undefined,
-    needsChange: order.formaPagamento === "DINHEIRO" && order.trocoPara !== null && order.trocoPara !== undefined,
+    needsChange: !isPendingTablePayment && order.formaPagamento === "DINHEIRO" && order.trocoPara !== null && order.trocoPara !== undefined,
     changeFor: order.trocoPara ?? undefined,
     phone: order.telefoneCliente ?? "-",
     status: order.status ? backendStatusToPanelStatus[order.status] : "novo",
@@ -434,8 +442,8 @@ export const ordersApi = {
       const formaPagamento = mapPanelPaymentToBackend(changes.payment)
       const paymentPatch = {
         formaPagamento,
-        pagamentoConfirmado: changes.paymentConfirmed,
-        statusPagamento: changes.paymentConfirmed ? "CONFIRMADO" : undefined,
+        pagamentoConfirmado: changes.paymentConfirmed ?? true,
+        statusPagamento: changes.paymentConfirmed === false ? "PENDENTE" : "CONFIRMADO",
         trocoPara: changes.payment === "Dinheiro" && changes.needsChange ? changes.changeFor : undefined,
       }
 
