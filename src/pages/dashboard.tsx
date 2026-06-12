@@ -596,6 +596,14 @@ function getWhatsAppEventForOrderStatus(status?: Order["status"]) {
   return null
 }
 
+function shouldNotifyOrderOnWhatsApp(order: Order) {
+  if (order.delivery === "Mesa") return false
+
+  const cleanPhone = order.phone.replace(/\D/g, "")
+
+  return cleanPhone.length >= 10
+}
+
 export function Dashboard({ onLogout }: DashboardProps) {
   const {
     connectionStatus,
@@ -1512,12 +1520,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
         const whatsAppEvent = getWhatsAppEventForOrderStatus(changes.status)
 
-        if (whatsAppEvent) {
-          void notifyWhatsAppOrderStatus(whatsAppEvent, { ...previousOrder, ...changes }).catch((error) => {
-            const message = error instanceof Error ? error.message : "Não foi possível enviar atualização pelo WhatsApp."
+        const orderForNotification = { ...previousOrder, ...changes }
 
+        if (whatsAppEvent && shouldNotifyOrderOnWhatsApp(orderForNotification)) {
+          void notifyWhatsAppOrderStatus(whatsAppEvent, orderForNotification).catch((error) => {
             console.warn("Não foi possível enviar atualização pelo WhatsApp.", error)
-            showNotice(message)
           })
         }
       } else {
