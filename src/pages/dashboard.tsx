@@ -4536,7 +4536,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                       const nextStatus = selectedOrder.delivery === "Delivery"
                                         ? "saiu"
                                         : isTableOrder(selectedOrder)
-                                          ? "finalizado"
+                                          ? "concluido"
                                           : "pronto"
                                       return updateSelectedOrder(
                                         { status: nextStatus },
