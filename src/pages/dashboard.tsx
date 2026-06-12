@@ -535,7 +535,15 @@ function matchesFilter(order: Order, filter: OrderFilter) {
   if (filter === "todos") return true
   if (filter === "entrega") return order.delivery === "Delivery"
   if (filter === "retirada") return order.delivery === "Retirada"
-  return order.delivery === "Mesa"
+  return isTableOrder(order)
+}
+
+function isTableOrder(order: Pick<Order, "address" | "customer" | "delivery">) {
+  const delivery = normalizeText(String(order.delivery))
+  const address = normalizeText(order.address)
+  const customer = normalizeText(order.customer)
+
+  return delivery === "mesa" || address.startsWith("mesa") || customer.startsWith("mesa")
 }
 
 function isErrorNotice(message: string) {
@@ -597,7 +605,7 @@ function getWhatsAppEventForOrderStatus(status?: Order["status"]) {
 }
 
 function shouldNotifyOrderOnWhatsApp(order: Order) {
-  if (order.delivery === "Mesa") return false
+  if (isTableOrder(order)) return false
 
   const cleanPhone = order.phone.replace(/\D/g, "")
 
@@ -1582,7 +1590,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       return
     }
 
-    const parsedTableNumber = selectedOrder.delivery === "Mesa"
+    const parsedTableNumber = isTableOrder(selectedOrder)
       ? selectedOrder.address.replace(/^Mesa\s*/i, "")
       : ""
 
@@ -4527,20 +4535,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                     onClick={() => {
                                       const nextStatus = selectedOrder.delivery === "Delivery"
                                         ? "saiu"
-                                        : selectedOrder.delivery === "Mesa"
+                                        : isTableOrder(selectedOrder)
                                           ? "finalizado"
                                           : "pronto"
                                       return updateSelectedOrder(
                                         { status: nextStatus },
                                         selectedOrder.delivery === "Delivery"
                                           ? `Pedido #${selectedOrder.id} saiu para entrega.`
-                                          : selectedOrder.delivery === "Mesa"
+                                          : isTableOrder(selectedOrder)
                                             ? `Pedido #${selectedOrder.id} finalizado.`
                                             : `Pedido #${selectedOrder.id} marcado como pronto para retirada.`
                                       )
                                     }}
                                     className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black text-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                                      selectedOrder.delivery === "Mesa"
+                                      isTableOrder(selectedOrder)
                                         ? "bg-emerald-400 hover:bg-emerald-300"
                                         : "bg-cyan-400 hover:bg-cyan-300"
                                     }`}
@@ -4552,7 +4560,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         ? "Selecione um motoboy"
                                         : selectedOrder.delivery === "Delivery"
                                           ? "Enviar para entrega"
-                                          : selectedOrder.delivery === "Mesa"
+                                          : isTableOrder(selectedOrder)
                                             ? "Concluir mesa"
                                             : "Marcar pronto"}
                                   </button>
@@ -4565,7 +4573,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                     className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
 	                                  >
 	                                    <CheckCircle2 size={15} />
-	                                    {selectedOrderIsUpdating ? "Salvando..." : selectedOrder.delivery === "Mesa" ? "Concluir mesa" : "Finalizar pedido"}
+	                                    {selectedOrderIsUpdating ? "Salvando..." : isTableOrder(selectedOrder) ? "Concluir mesa" : "Finalizar pedido"}
 	                                  </button>
 	                                )}
                                 {selectedOrder.status === "saiu" && (
@@ -4654,7 +4662,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                          <p className={`mt-3 break-words text-xs font-bold ${hasPaymentMethod(selectedOrder) ? "text-zinc-400" : "text-orange-200"}`}>
                               {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
                             </p>
-                            {selectedOrder.delivery === "Mesa" && renderSelectedOrderPaymentEditor()}
+                            {isTableOrder(selectedOrder) && renderSelectedOrderPaymentEditor()}
 	                        </div>
                       </div>
                     </div>
@@ -4737,7 +4745,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">
 	                            Sub {formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}
 	                          </p>
-                            {selectedOrder.delivery === "Mesa" && renderSelectedOrderPaymentEditor()}
+                            {isTableOrder(selectedOrder) && renderSelectedOrderPaymentEditor()}
 	                          {selectedOrder.payment === "Dinheiro" && selectedOrder.needsChange && (
 	                            <p className="mt-2 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-100">
 	                              Troco para {formatCurrency(selectedOrder.changeFor ?? 0)}
