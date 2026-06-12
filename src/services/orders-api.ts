@@ -314,7 +314,7 @@ async function hydrateOrderItems(order: Order, signal?: AbortSignal) {
   try {
     const detailedOrder = mapBackendOrder(await adminRequest<BackendOrder>(`/admin/pedidos/${backendId}`, {
       signal,
-    }))
+    }, { expireSessionOnAuthError: false }))
 
     return orderHasItems(detailedOrder) ? { ...order, ...detailedOrder } : order
   } catch (error) {

@@ -60,7 +60,17 @@ export class AdminApiError extends Error {
 
 export function getAdminToken() {
   try {
-    return window.sessionStorage.getItem(adminTokenKey)
+    const persistedToken = window.localStorage.getItem(adminTokenKey)
+
+    if (persistedToken) return persistedToken
+
+    const sessionToken = window.sessionStorage.getItem(adminTokenKey)
+
+    if (sessionToken) {
+      window.localStorage.setItem(adminTokenKey, sessionToken)
+    }
+
+    return sessionToken
   } catch {
     return null
   }
@@ -72,9 +82,10 @@ export function hasAdminSession() {
 
 export function clearAdminSession({ notify = false } = {}) {
   try {
+    window.localStorage.removeItem(adminTokenKey)
     window.sessionStorage.removeItem(adminTokenKey)
   } catch {
-    // Session storage may be unavailable in restricted browser modes.
+    // Storage may be unavailable in restricted browser modes.
   }
 
   if (notify) {
@@ -83,6 +94,7 @@ export function clearAdminSession({ notify = false } = {}) {
 }
 
 function saveAdminSession(token: string) {
+  window.localStorage.setItem(adminTokenKey, token)
   window.sessionStorage.setItem(adminTokenKey, token)
 }
 
@@ -129,7 +141,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export async function adminRequest<T>(
   path: string,
   options?: RequestInit,
-  settings: { auth?: boolean } = {}
+  settings: { auth?: boolean; expireSessionOnAuthError?: boolean } = {}
 ): Promise<T> {
   if (!adminApiBaseUrl) {
     throw new Error("Backend URL is not configured.")
@@ -158,7 +170,11 @@ export async function adminRequest<T>(
     headers,
   })
 
-  if ((response.status === 401 || response.status === 403) && settings.auth !== false) {
+  if (
+    (response.status === 401 || response.status === 403) &&
+    settings.auth !== false &&
+    settings.expireSessionOnAuthError !== false
+  ) {
     clearAdminSession({ notify: true })
   }
 
