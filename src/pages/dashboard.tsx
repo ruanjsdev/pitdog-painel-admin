@@ -4523,12 +4523,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         : selectedOrder.delivery === "Mesa"
                                           ? "pronto"
                                           : "pronto"
-                                      const readyChanges: Partial<Order> = selectedOrder.delivery === "Mesa" || selectedOrder.delivery === "Retirada"
-                                        ? { backendStatus: "PRONTO", status: nextStatus }
-                                        : { status: nextStatus }
-
                                       return updateSelectedOrder(
-                                        readyChanges,
+                                        { status: nextStatus },
                                         selectedOrder.delivery === "Delivery"
                                           ? `Pedido #${selectedOrder.id} saiu para entrega.`
                                           : selectedOrder.delivery === "Mesa"
