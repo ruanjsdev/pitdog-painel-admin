@@ -28,7 +28,7 @@ function asArray<T>(response: T[] | { content?: T[]; data?: T[] }) {
 }
 
 function normalizeApiError(error: unknown) {
-  if (error instanceof AdminApiError && (error.status === 404 || error.status === 501)) {
+  if (error instanceof AdminApiError && (error.status === 403 || error.status === 404 || error.status === 501)) {
     throw new Error(unsupportedMessage)
   }
 
@@ -66,7 +66,7 @@ export const addonsApi = {
     if (!adminApiBaseUrl) return []
 
     try {
-      return asArray(await adminRequest<ApiAddon[] | { content?: ApiAddon[] } | { data?: ApiAddon[] }>("/addons")).map(mapAddon)
+      return asArray(await adminRequest<ApiAddon[] | { content?: ApiAddon[] } | { data?: ApiAddon[] }>("/addons", undefined, { expireSessionOnAuthError: false })).map(mapAddon)
     } catch (error) {
       normalizeApiError(error)
     }
@@ -77,7 +77,7 @@ export const addonsApi = {
       return mapAddon(await adminRequest<ApiAddon>("/addons", {
         body: JSON.stringify(toBackendAddon(data)),
         method: "POST",
-      }))
+      }, { expireSessionOnAuthError: false }))
     } catch (error) {
       normalizeApiError(error)
     }
@@ -88,7 +88,7 @@ export const addonsApi = {
       return mapAddon(await adminRequest<ApiAddon>(`/addons/${id}`, {
         body: JSON.stringify(toBackendAddon(data)),
         method: "PUT",
-      }))
+      }, { expireSessionOnAuthError: false }))
     } catch (error) {
       normalizeApiError(error)
     }
@@ -98,7 +98,7 @@ export const addonsApi = {
     try {
       await adminRequest<void>(`/addons/${id}`, {
         method: "DELETE",
-      })
+      }, { expireSessionOnAuthError: false })
     } catch (error) {
       normalizeApiError(error)
     }
@@ -108,7 +108,7 @@ export const addonsApi = {
     if (!adminApiBaseUrl) return []
 
     try {
-      return asArray(await adminRequest<ApiAddon[] | { content?: ApiAddon[] } | { data?: ApiAddon[] }>(`/products/${productId}/addons`)).map(mapAddon)
+      return asArray(await adminRequest<ApiAddon[] | { content?: ApiAddon[] } | { data?: ApiAddon[] }>(`/products/${productId}/addons`, undefined, { expireSessionOnAuthError: false })).map(mapAddon)
     } catch (error) {
       normalizeApiError(error)
     }
@@ -119,7 +119,7 @@ export const addonsApi = {
       await adminRequest<void>(`/products/${productId}/addons`, {
         body: JSON.stringify({ addonIds }),
         method: "PUT",
-      })
+      }, { expireSessionOnAuthError: false })
     } catch (error) {
       normalizeApiError(error)
     }

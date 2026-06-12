@@ -38,7 +38,7 @@ function toBackendDraft(draft: ProductFlavorDraft) {
 }
 
 function normalizeResourceError(error: unknown) {
-  if (error instanceof AdminApiError && (error.status === 404 || error.status === 501)) {
+  if (error instanceof AdminApiError && (error.status === 403 || error.status === 404 || error.status === 501)) {
     throw new Error(resourceUnavailableMessage)
   }
 
@@ -50,7 +50,7 @@ export const flavorApi = {
     if (!adminApiBaseUrl) return []
 
     try {
-      return asArray(await adminRequest<ProductFlavor[] | { content?: ProductFlavor[] } | { data?: ProductFlavor[] }>("/flavors")).map(mapFlavor)
+      return asArray(await adminRequest<ProductFlavor[] | { content?: ProductFlavor[] } | { data?: ProductFlavor[] }>("/flavors", undefined, { expireSessionOnAuthError: false })).map(mapFlavor)
     } catch (error) {
       normalizeResourceError(error)
     }
@@ -61,7 +61,7 @@ export const flavorApi = {
       return mapFlavor(await adminRequest<ProductFlavor>("/flavors", {
         body: JSON.stringify(toBackendDraft(data)),
         method: "POST",
-      }))
+      }, { expireSessionOnAuthError: false }))
     } catch (error) {
       normalizeResourceError(error)
     }
@@ -72,7 +72,7 @@ export const flavorApi = {
       return mapFlavor(await adminRequest<ProductFlavor>(`/flavors/${id}`, {
         body: JSON.stringify(toBackendDraft(data)),
         method: "PUT",
-      }))
+      }, { expireSessionOnAuthError: false }))
     } catch (error) {
       normalizeResourceError(error)
     }
@@ -82,7 +82,7 @@ export const flavorApi = {
     try {
       await adminRequest<void>(`/flavors/${id}`, {
         method: "DELETE",
-      })
+      }, { expireSessionOnAuthError: false })
     } catch (error) {
       normalizeResourceError(error)
     }

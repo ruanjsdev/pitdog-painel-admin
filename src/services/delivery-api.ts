@@ -37,7 +37,7 @@ function toBackendDraft(draft: DeliveryPersonDraft) {
 }
 
 function normalizeResourceError(error: unknown) {
-  if (error instanceof AdminApiError && (error.status === 404 || error.status === 501)) {
+  if (error instanceof AdminApiError && (error.status === 403 || error.status === 404 || error.status === 501)) {
     throw new Error(resourceUnavailableMessage)
   }
 
@@ -49,7 +49,7 @@ export const deliveryApi = {
     if (!adminApiBaseUrl) return []
 
     try {
-      return asArray(await adminRequest<DeliveryPerson[] | { content?: DeliveryPerson[] } | { data?: DeliveryPerson[] }>("/delivery-people")).map(mapDeliveryPerson)
+      return asArray(await adminRequest<DeliveryPerson[] | { content?: DeliveryPerson[] } | { data?: DeliveryPerson[] }>("/delivery-people", undefined, { expireSessionOnAuthError: false })).map(mapDeliveryPerson)
     } catch (error) {
       normalizeResourceError(error)
     }
@@ -60,7 +60,7 @@ export const deliveryApi = {
       return mapDeliveryPerson(await adminRequest<DeliveryPerson>("/delivery-people", {
         body: JSON.stringify(toBackendDraft(data)),
         method: "POST",
-      }))
+      }, { expireSessionOnAuthError: false }))
     } catch (error) {
       normalizeResourceError(error)
     }
@@ -71,7 +71,7 @@ export const deliveryApi = {
       return mapDeliveryPerson(await adminRequest<DeliveryPerson>(`/delivery-people/${id}`, {
         body: JSON.stringify(toBackendDraft(data)),
         method: "PUT",
-      }))
+      }, { expireSessionOnAuthError: false }))
     } catch (error) {
       normalizeResourceError(error)
     }
@@ -81,7 +81,7 @@ export const deliveryApi = {
     try {
       await adminRequest<void>(`/delivery-people/${id}`, {
         method: "DELETE",
-      })
+      }, { expireSessionOnAuthError: false })
     } catch (error) {
       normalizeResourceError(error)
     }
@@ -92,7 +92,7 @@ export const deliveryApi = {
       await adminRequest<void>(`/orders/${orderId}/delivery-person`, {
         body: JSON.stringify({ deliveryPersonId }),
         method: "PATCH",
-      })
+      }, { expireSessionOnAuthError: false })
     } catch (error) {
       normalizeResourceError(error)
     }
