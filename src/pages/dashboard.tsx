@@ -1567,16 +1567,94 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  async function updateSelectedOrderPayment(payment: string) {
+  async function updateSelectedOrderPayment(payment: string, options?: { changeFor?: number; needsChange?: boolean }) {
     if (!selectedOrder || !payment) return
+    const isCash = payment === "Dinheiro"
+    const needsChange = isCash ? options?.needsChange ?? selectedOrder.needsChange ?? false : false
 
     await updateSelectedOrder({
-      changeFor: payment === "Dinheiro" && selectedOrder.needsChange ? selectedOrder.changeFor : undefined,
-      needsChange: payment === "Dinheiro" ? selectedOrder.needsChange : false,
+      changeFor: isCash && needsChange ? options?.changeFor ?? selectedOrder.changeFor : undefined,
+      needsChange,
       payment,
       paymentConfirmed: true,
       paymentStatus: "CONFIRMADO",
     }, `Pagamento do pedido #${selectedOrder.id} definido como ${payment}.`)
+  }
+
+  function renderSelectedOrderPaymentEditor() {
+    if (!selectedOrder || isEditing || selectedOrder.status === "cancelado" || selectedOrder.status === "finalizado") return null
+
+    const selectedPayment = hasPaymentMethod(selectedOrder) ? selectedOrder.payment : ""
+    const changeValue = selectedOrder.changeFor ?? selectedOrder.paymentChangeFor ?? calculateOrderTotal(selectedOrder)
+
+    return (
+      <div className="mt-3 space-y-2 rounded-lg border border-orange-300/15 bg-orange-400/[0.06] p-2">
+        <div className="grid grid-cols-2 gap-2">
+          {paymentOptions.map((payment) => (
+            <button
+              key={payment}
+              type="button"
+              disabled={selectedOrderIsUpdating}
+              onClick={() => updateSelectedOrderPayment(payment)}
+              className={`min-h-11 rounded-lg border px-3 text-left text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                selectedPayment === payment
+                  ? "border-orange-300 bg-orange-400 text-black shadow-[0_12px_30px_rgba(251,146,60,0.22)]"
+                  : "border-white/10 bg-black/[0.34] text-white hover:border-orange-300/50 hover:bg-orange-400/10"
+              }`}
+            >
+              {payment}
+            </button>
+          ))}
+        </div>
+
+        {selectedPayment === "Dinheiro" && (
+          <div className="space-y-2 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={selectedOrderIsUpdating}
+                onClick={() => updateSelectedOrderPayment("Dinheiro", { needsChange: false })}
+                className={`min-h-10 rounded-lg border px-3 text-xs font-black transition ${
+                  !selectedOrder.needsChange
+                    ? "border-emerald-300 bg-emerald-300 text-black"
+                    : "border-white/10 bg-black/[0.28] text-white"
+                }`}
+              >
+                Sem troco
+              </button>
+              <button
+                type="button"
+                disabled={selectedOrderIsUpdating}
+                onClick={() => updateSelectedOrderPayment("Dinheiro", { changeFor: changeValue, needsChange: true })}
+                className={`min-h-10 rounded-lg border px-3 text-xs font-black transition ${
+                  selectedOrder.needsChange
+                    ? "border-emerald-300 bg-emerald-300 text-black"
+                    : "border-white/10 bg-black/[0.28] text-white"
+                }`}
+              >
+                Precisa troco
+              </button>
+            </div>
+
+            {selectedOrder.needsChange && (
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100/70">Troco para</span>
+                <input
+                  type="number"
+                  min={calculateOrderTotal(selectedOrder)}
+                  defaultValue={numberInputValue(changeValue)}
+                  onBlur={(event) => updateSelectedOrderPayment("Dinheiro", {
+                    changeFor: Number(event.target.value) || calculateOrderTotal(selectedOrder),
+                    needsChange: true,
+                  })}
+                  className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.34] px-3 text-sm font-black text-white outline-none focus:border-emerald-300/70"
+                />
+              </label>
+            )}
+          </div>
+        )}
+      </div>
+    )
   }
 
   function addDraftProduct() {
@@ -4299,19 +4377,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                          <p className={`mt-3 break-words text-xs font-bold ${hasPaymentMethod(selectedOrder) ? "text-zinc-400" : "text-orange-200"}`}>
                               {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
                             </p>
-                            {selectedOrder.delivery === "Mesa" && !isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "finalizado" && (
-                              <select
-                                value={hasPaymentMethod(selectedOrder) ? selectedOrder.payment : ""}
-                                disabled={selectedOrderIsUpdating}
-                                onChange={(event) => updateSelectedOrderPayment(event.target.value)}
-                                className="mt-3 h-9 w-full rounded-lg border border-orange-300/25 bg-black/[0.38] px-2 text-xs font-black text-white outline-none transition focus:border-orange-300/70 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                <option value="">Forma de pagamento</option>
-                                {paymentOptions.map((payment) => (
-                                  <option key={payment} value={payment}>{payment}</option>
-                                ))}
-                              </select>
-                            )}
+                            {selectedOrder.delivery === "Mesa" && renderSelectedOrderPaymentEditor()}
 	                        </div>
                       </div>
                     </div>
@@ -4394,19 +4460,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">
 	                            Sub {formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}
 	                          </p>
-                            {selectedOrder.delivery === "Mesa" && !isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "finalizado" && (
-                              <select
-                                value={hasPaymentMethod(selectedOrder) ? selectedOrder.payment : ""}
-                                disabled={selectedOrderIsUpdating}
-                                onChange={(event) => updateSelectedOrderPayment(event.target.value)}
-                                className="mt-3 h-9 w-full rounded-lg border border-orange-300/25 bg-black/[0.38] px-2 text-xs font-black text-white outline-none transition focus:border-orange-300/70 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                <option value="">Forma de pagamento</option>
-                                {paymentOptions.map((payment) => (
-                                  <option key={payment} value={payment}>{payment}</option>
-                                ))}
-                              </select>
-                            )}
+                            {selectedOrder.delivery === "Mesa" && renderSelectedOrderPaymentEditor()}
 	                          {selectedOrder.payment === "Dinheiro" && selectedOrder.needsChange && (
 	                            <p className="mt-2 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-100">
 	                              Troco para {formatCurrency(selectedOrder.changeFor ?? 0)}

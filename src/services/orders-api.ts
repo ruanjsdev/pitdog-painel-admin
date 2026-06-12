@@ -196,14 +196,6 @@ function mapBackendOrder(order: BackendOrder): Order {
     : order.tipoPedido === "MESA"
       ? "Mesa"
       : "Retirada"
-  const isPendingTablePayment =
-    delivery === "Mesa" &&
-    order.statusPagamento === "PENDENTE" &&
-    order.pagamentoConfirmado !== true
-  const mappedStatus = order.status ? backendStatusToPanelStatus[order.status] : "novo"
-  const status = isPendingTablePayment && (mappedStatus === "concluido" || mappedStatus === "finalizado")
-    ? "pronto"
-    : mappedStatus
   const address = order.tipoPedido === "MESA"
     ? `Mesa ${order.numeroMesa ?? "-"}`
     : order.tipoPedido === "RETIRADA"
@@ -272,21 +264,17 @@ function mapBackendOrder(order: BackendOrder): Order {
       return `${base}${extra}${flavorText}${obs}`
     }),
     notes: "",
-    payment: isPendingTablePayment
-      ? "-"
-      : order.formaPagamento
-        ? paymentLabels[order.formaPagamento] ?? order.formaPagamento
-        : "-",
+    payment: order.formaPagamento ? paymentLabels[order.formaPagamento] ?? order.formaPagamento : "-",
     backendPaymentMethod: order.formaPagamento,
     paymentConfirmed: order.pagamentoConfirmado ?? false,
     paymentConfirmedAt: order.momentoPagamentoConfirmado ?? undefined,
     paymentStatus: order.statusPagamento ?? "PENDENTE",
     paymentChangeFor: order.trocoPara ?? undefined,
     paymentChangeValue: order.valorTroco ?? undefined,
-    needsChange: !isPendingTablePayment && order.formaPagamento === "DINHEIRO" && order.trocoPara !== null && order.trocoPara !== undefined,
+    needsChange: order.formaPagamento === "DINHEIRO" && order.trocoPara !== null && order.trocoPara !== undefined,
     changeFor: order.trocoPara ?? undefined,
     phone: order.telefoneCliente ?? "-",
-    status,
+    status: order.status ? backendStatusToPanelStatus[order.status] : "novo",
     subtotal: order.subtotal,
     time: formatTime(createdAt),
     total: calculateBackendTotal(order),
