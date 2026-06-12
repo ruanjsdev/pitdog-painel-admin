@@ -6,7 +6,7 @@ import type {
   MenuProduct,
   MenuProductDraft,
 } from "../types/menu"
-import { AdminApiError, adminApiBaseUrl, adminRequest } from "./admin-api"
+import { adminApiBaseUrl, adminRequest } from "./admin-api"
 
 export const hasMenuBackend = Boolean(adminApiBaseUrl)
 const productsAdminPath = "/admin/produtos"
@@ -70,9 +70,6 @@ const menuImageUploadPaths: Record<MenuImageTarget, (id: number) => string> = {
   produto: (id) => `/admin/produtos/${id}/imagem`,
 }
 
-function shouldTryFallbackImageField(error: unknown) {
-  return error instanceof AdminApiError && (error.status === 400 || error.status >= 500)
-}
 
 function readImageUrl(item: { imageUrl?: string | null; imagemUrl?: string | null; imagem?: string | null }) {
   return item.imageUrl ?? item.imagemUrl ?? item.imagem ?? null
@@ -385,31 +382,15 @@ export const menuApi = {
   },
 
   async uploadImage(target: MenuImageTarget, id: number, imageFile: File) {
-    async function uploadWithField(fieldName: "file" | "imagem") {
-      const body = new FormData()
+    const body = new FormData()
 
-      body.append(fieldName, imageFile)
+    body.append("imagem", imageFile)
 
-      const response = await adminRequest<UploadMenuImageResponse>(menuImageUploadPaths[target](id), {
-        body,
-        method: "POST",
-      })
+    const response = await adminRequest<UploadMenuImageResponse>(menuImageUploadPaths[target](id), {
+      body,
+      method: "POST",
+    })
 
-      return response.imageUrl ?? response.imagemUrl ?? response.url ?? null
-    }
-
-    try {
-      return await uploadWithField("imagem")
-    } catch (error) {
-      if (!shouldTryFallbackImageField(error)) {
-        throw new MenuImageUploadError(error)
-      }
-
-      try {
-        return await uploadWithField("file")
-      } catch (fallbackError) {
-        throw new MenuImageUploadError(fallbackError)
-      }
-    }
+    return response.imageUrl ?? response.imagemUrl ?? response.url ?? null
   }
 }
