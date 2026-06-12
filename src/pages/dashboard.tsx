@@ -46,6 +46,7 @@ import { MainLayout } from "../layouts/main-layout"
 import {
   activeOrdersWindowHours,
   getActivePanelOrders,
+  getOrderKey,
   orderHistoryRetentionDays,
 } from "../lib/order-sync"
 import { printApprovalTickets } from "../services/print-service"
@@ -143,6 +144,7 @@ const deliveryOptions: DeliveryType[] = ["Delivery", "Mesa", "Retirada"]
 const paymentOptions = ["Pix", "Dinheiro", "Cartão de crédito", "Cartão de débito"]
 const defaultDeliveryFee = 5
 const couriersStorageKey = "pitsdog:admin:couriers:v1"
+const hiddenOrdersStorageKey = "pitsdog:admin:hidden-orders:v1"
 const soundModeStorageKey = "pitsdog:admin:sound-mode:v1"
 const pixSettingsStorageKey = "pitsdog:admin:pix-settings:v1"
 const localPanelSettingsStorageKey = "pitsdog:admin:local-panel-settings:v1"
@@ -207,6 +209,14 @@ const deliveryIcons: Record<string, typeof Truck> = {
 function readCouriers() {
   try {
     return JSON.parse(window.localStorage.getItem(couriersStorageKey) ?? "[]") as DeliveryPerson[]
+  } catch {
+    return []
+  }
+}
+
+function readHiddenOrderKeys() {
+  try {
+    return JSON.parse(window.localStorage.getItem(hiddenOrdersStorageKey) ?? "[]") as string[]
   } catch {
     return []
   }
@@ -644,6 +654,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [updatingOrderIds, setUpdatingOrderIds] = useState<Set<number>>(() => new Set())
   const updatingOrderIdsRef = useRef(new Set<number>())
   const [couriers, setCouriers] = useState<DeliveryPerson[]>(readCouriers)
+  const [hiddenOrderKeys, setHiddenOrderKeys] = useState<string[]>(readHiddenOrderKeys)
   const [courierDraft, setCourierDraft] = useState<DeliveryPersonDraft>(emptyDeliveryPersonDraft)
   const [editingCourierId, setEditingCourierId] = useState<string | null>(null)
   const [courierFeedback, setCourierFeedback] = useState("")
@@ -670,9 +681,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
       second: "2-digit",
     })
   ))
+  const hiddenOrderKeySet = useMemo(() => new Set(hiddenOrderKeys), [hiddenOrderKeys])
+  const visibleOrderList = useMemo(
+    () => orderList.filter((order) => !hiddenOrderKeySet.has(getOrderKey(order))),
+    [hiddenOrderKeySet, orderList]
+  )
   const activeOrderList = useMemo(
-    () => getActivePanelOrders(orderList, activePanelClock),
-    [activePanelClock, orderList]
+    () => getActivePanelOrders(visibleOrderList, activePanelClock),
+    [activePanelClock, visibleOrderList]
   )
   const orderSound = useNewOrderSound(activeOrderList, { enabled: soundEnabled, soundModeId })
 
@@ -803,6 +819,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
   useEffect(() => {
     window.localStorage.setItem(couriersStorageKey, JSON.stringify(couriers))
   }, [couriers])
+
+  useEffect(() => {
+    window.localStorage.setItem(hiddenOrdersStorageKey, JSON.stringify(hiddenOrderKeys))
+  }, [hiddenOrderKeys])
 
   useEffect(() => {
     window.localStorage.setItem(soundModeStorageKey, soundModeId)
@@ -1020,8 +1040,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }, [menuAdmin.categories, visibleProducts])
 
   const cashOrders = useMemo(
-    () => orderList.filter((order) => order.status !== "cancelado"),
-    [orderList]
+    () => visibleOrderList.filter((order) => order.status !== "cancelado"),
+    [visibleOrderList]
   )
   const normalizedReportStartDate = reportStartDate <= reportEndDate ? reportStartDate : reportEndDate
   const normalizedReportEndDate = reportStartDate <= reportEndDate ? reportEndDate : reportStartDate
@@ -1074,9 +1094,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
     return !normalizedSearch ||
       normalizeText(`${courier.name} ${courier.phone ?? ""}`).includes(normalizedSearch)
   })
-  const reportDeliveryOrders = reportOrders.filter((order) => order.delivery === "Delivery" && order.status !== "cancelado")
+  const todayDateKey = getLocalDateInputValue()
+  const todayDeliveryOrders = visibleOrderList.filter((order) => (
+    order.delivery === "Delivery" &&
+    order.status !== "cancelado" &&
+    getOrderDateInputValue(order) === todayDateKey
+  ))
   const courierStats = couriers.map((courier) => ({
     ...courier,
+    todayOrdersCount: todayDeliveryOrders.filter((order) => order.courierId === courier.id).length,
     ordersCount: reportOrders.filter((order) => order.courierId === courier.id).length,
   }))
   const activeMenuCategories = menuAdmin.categories.filter((category) => category.ativo)
@@ -1115,7 +1141,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       total: number
     }>()
 
-    orderList.forEach((order) => {
+    visibleOrderList.forEach((order) => {
       const key = normalizePhone(order.phone)
       const currentClient = clients.get(key) ?? {
         addresses: new Set<string>(),
@@ -1144,7 +1170,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         key,
       }))
       .sort((first, second) => second.orders.length - first.orders.length)
-  }, [orderList])
+  }, [visibleOrderList])
   const selectedClient = clientProfiles.find((client) => client.key === selectedClientPhone) ?? clientProfiles[0]
 
   function selectOrder(order: Order) {
@@ -1226,6 +1252,55 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
     setCouriers((currentCouriers) => currentCouriers.filter((currentCourier) => currentCourier.id !== courier.id))
     setCourierFeedback(`${courier.name} excluído deste painel.`)
+  }
+
+  function hideAllLoadedOrdersWithConfirmations() {
+    const totalOrders = visibleOrderList.length
+
+    if (totalOrders === 0) {
+      showNotice("Não há pedidos visíveis para ocultar.")
+      return
+    }
+
+    const confirmations = [
+      `Você vai ocultar ${totalOrders} pedidos deste painel. Continuar?`,
+      "Isso vai zerar dashboard, caixa, relatórios e clientes neste navegador. Tem certeza?",
+      "Use isso apenas para remover pedidos de teste antes da entrega ao Pedrinho. Confirmar?",
+      "Os pedidos não serão apagados do backend, mas ficarão escondidos neste painel. Prosseguir?",
+      "Quinta confirmação: você assume que esta limpeza é intencional e quer continuar?",
+    ]
+
+    for (const message of confirmations) {
+      if (!window.confirm(message)) {
+        showNotice("Limpeza cancelada. Nenhum pedido foi ocultado.")
+        return
+      }
+    }
+
+    const keyword = window.prompt('Última confirmação: digite "Pedrinho" para ocultar os pedidos.')
+
+    if (keyword !== "Pedrinho") {
+      showNotice("Palavra-chave incorreta. Limpeza cancelada.")
+      return
+    }
+
+    const keysToHide = visibleOrderList.map((order) => getOrderKey(order))
+
+    setHiddenOrderKeys((currentKeys) => [...new Set([...currentKeys, ...keysToHide])])
+    setSelectedOrderId(undefined)
+    showStatusToast(`${totalOrders} pedidos ocultados deste painel.`)
+  }
+
+  function restoreHiddenOrders() {
+    if (hiddenOrderKeys.length === 0) {
+      showNotice("Não há pedidos ocultos neste painel.")
+      return
+    }
+
+    if (!window.confirm(`Restaurar ${hiddenOrderKeys.length} pedidos ocultos para este painel?`)) return
+
+    setHiddenOrderKeys([])
+    showStatusToast("Pedidos ocultos restaurados.")
   }
 
   async function assignCourierToOrder(order: Order, courierId: string) {
@@ -2363,7 +2438,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       Nenhum entregador encontrado.
                     </div>
                   )}
-                  {visibleDeliveryPeople.map((courier) => (
+                  {visibleDeliveryPeople.map((courier) => {
+                    const stats = courierStats.find((currentCourier) => currentCourier.id === courier.id)
+
+                    return (
                     <div key={courier.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -2371,8 +2449,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
                           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${courier.active ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"}`}>
                             {courier.active ? "Ativo" : "Inativo"}
                           </span>
+                          <span className="rounded-full border border-orange-300/25 bg-orange-400/10 px-2 py-0.5 text-[10px] font-black uppercase text-orange-100">
+                            {stats?.todayOrdersCount ?? 0} hoje
+                          </span>
                         </div>
-                        <p className="mt-1 truncate text-xs text-zinc-500">{courier.phone || "Sem telefone"} {courier.notes ? `| ${courier.notes}` : ""}</p>
+                        <p className="mt-1 truncate text-xs text-zinc-500">
+                          {courier.phone || "Sem telefone"} {courier.notes ? `| ${courier.notes}` : ""}
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-orange-100/70">
+                          {stats?.todayOrdersCount ?? 0} {(stats?.todayOrdersCount ?? 0) === 1 ? "entrega feita hoje" : "entregas feitas hoje"}
+                        </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => editCourier(courier)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
@@ -2387,7 +2473,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -2407,7 +2494,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </button>
             </div>
 
-            <div className="mt-4 max-w-xl">
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,560px)_minmax(0,520px)]">
               <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
                 <div className="flex items-center gap-2 text-sm font-black text-white">
                   <Printer size={16} className="text-orange-300" />
@@ -2480,6 +2567,41 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       Testar impressão
                     </button>
                   </div>
+                </div>
+              </article>
+
+              <article className="rounded-lg border border-red-300/25 bg-red-500/[0.07] p-4">
+                <div className="flex items-center gap-2 text-sm font-black text-red-100">
+                  <AlertTriangle size={16} className="text-red-300" />
+                  Limpeza para entrega
+                </div>
+                <p className="mt-2 text-xs font-bold leading-5 text-red-100/75">
+                  Oculta todos os pedidos atualmente carregados neste painel para remover testes antes de entregar ao cliente. A ação zera dashboard, caixa, relatórios e clientes neste navegador.
+                </p>
+                <div className="mt-3 grid gap-2 rounded-lg border border-red-300/15 bg-black/[0.22] p-3 text-xs font-bold text-red-100/80">
+                  <span>Pedidos visíveis agora: <strong className="text-white">{visibleOrderList.length}</strong></span>
+                  <span>Pedidos ocultos neste painel: <strong className="text-white">{hiddenOrderKeys.length}</strong></span>
+                  <span>Confirmação final exigida: <strong className="text-white">Pedrinho</strong></span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={hideAllLoadedOrdersWithConfirmations}
+                    disabled={visibleOrderList.length === 0}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-400 px-3 text-xs font-black text-black transition hover:bg-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <XCircle size={15} />
+                    Ocultar pedidos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={restoreHiddenOrders}
+                    disabled={hiddenOrderKeys.length === 0}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw size={15} />
+                    Restaurar ocultos
+                  </button>
                 </div>
               </article>
             </div>
@@ -3928,95 +4050,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </article>
 	              ))}
 	            </div>
-
-            <details className="mt-4 rounded-lg border border-white/10 bg-black/[0.14] p-3">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-white">
-                <span>Entregas e motoboys</span>
-                <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-black uppercase text-zinc-400">
-                  {reportDeliveryOrders.length} entregas
-                </span>
-              </summary>
-
-              <div className="mt-3 grid gap-3 border-t border-white/10 pt-3 xl:grid-cols-[280px_minmax(0,1fr)]">
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-300">Motoboys</p>
-                  <div className="mt-3 flex gap-2">
-                    <input
-                      value={courierDraft.name}
-                      onChange={(event) => setCourierDraft({ ...courierDraft, name: event.target.value })}
-                      placeholder="Nome"
-                      className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-xs font-bold text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-                    />
-                    <button
-                      type="button"
-                      onClick={addCourier}
-                      className="h-9 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-                    >
-                      {editingCourierId ? "Salvar" : "Add"}
-                    </button>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {couriers.length === 0 && (
-                      <span className="text-xs font-bold text-zinc-500">Nenhum motoboy cadastrado.</span>
-                    )}
-                    {couriers.map((courier) => (
-                      <button
-                        key={courier.id}
-                        type="button"
-                        onClick={() => setCouriers((currentCouriers) => currentCouriers.map((currentCourier) => (
-                          currentCourier.id === courier.id ? { ...currentCourier, active: !currentCourier.active } : currentCourier
-                        )))}
-                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-black transition ${
-                          courier.active
-                            ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
-                            : "border-red-300/25 bg-red-400/10 text-red-100"
-                        }`}
-                        title="Clique para ativar ou pausar"
-                      >
-                        {courier.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-300">Pedidos delivery</p>
-                    <span className="text-[11px] font-bold text-zinc-500">{reportPeriodLabel}</span>
-                  </div>
-
-                  <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
-                    {reportDeliveryOrders.length === 0 && (
-                      <div className="rounded-lg border border-dashed border-white/10 bg-black/[0.18] p-4 text-center text-xs font-bold text-zinc-500">
-                        Nenhuma entrega para selecionar motoboy.
-                      </div>
-                    )}
-
-                    {reportDeliveryOrders.map((order) => (
-                      <div key={`courier-${order.id}`} className="grid gap-2 rounded-lg border border-white/10 bg-black/[0.18] p-2 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
-                        <div className="min-w-0">
-                          <strong className="block truncate text-sm font-black text-white">#{order.id} {order.customer}</strong>
-                          <p className="mt-0.5 truncate text-xs text-zinc-500">{order.address || "Sem endereço"}</p>
-                        </div>
-                        <select
-                          value={order.courierId ?? ""}
-                          onChange={(event) => void assignCourierToOrder(order, event.target.value)}
-                          className="h-9 rounded-lg border border-white/10 bg-black/[0.28] px-2 text-xs font-black text-white outline-none focus:border-orange-300/60"
-                        >
-                          <option value="">Sem motoboy</option>
-                          {activeCouriers.map((courier) => (
-                            <option key={courier.id} value={courier.id}>
-                              {courier.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </details>
 
 	            <div className="mt-4 flex flex-wrap gap-2">
               {(Object.keys(cashTabLabels) as CashTab[]).map((tab) => (
