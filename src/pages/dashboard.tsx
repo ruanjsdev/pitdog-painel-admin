@@ -2094,15 +2094,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
           ? "Produtos, categorias e adicionais abertos."
           : panel === "motoboys"
             ? "Gerenciamento de entregadores aberto."
-              : panel === "configuracoes"
-                ? "Configurações técnicas abertas."
-                : panel === "limpeza"
-                  ? "Limpeza de pedidos aberta."
-                  : panel === "caixa"
-                    ? "Fluxo de caixa aberto."
-                    : panel === "clientes"
-                      ? "Histórico de clientes aberto."
-                      : "Central do Zap aberta."
+            : panel === "configuracoes"
+              ? "Configurações técnicas abertas."
+              : panel === "limpeza"
+                ? "Limpeza de pedidos aberta."
+                : panel === "caixa"
+                  ? "Fluxo de caixa aberto."
+                  : panel === "clientes"
+                    ? "Histórico de clientes aberto."
+                    : "Central do Zap aberta."
     )
   }
 
@@ -2155,9 +2155,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   return (
     <MainLayout>
-      <div className={`flex h-full w-full flex-col overflow-hidden px-3 py-3 sm:px-4 lg:px-5 ${
-        storeOpen ? "bg-white/[0.03]" : "bg-red-950/35"
-      } ${localPanelSettings.compactMode ? "text-[0.93rem]" : ""}`}>
+      <div className={`flex h-full w-full flex-col overflow-hidden px-3 py-3 sm:px-4 lg:px-5 ${storeOpen ? "bg-white/[0.03]" : "bg-red-950/35"
+        } ${localPanelSettings.compactMode ? "text-[0.93rem]" : ""}`}>
         {statusToast && (
           <div
             key={statusToast.id}
@@ -2217,11 +2216,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                           needsChange: payment === "Dinheiro" ? current.needsChange : false,
                           payment,
                         } : current)}
-                        className={`min-h-14 rounded-lg border px-3 text-left text-sm font-black transition ${
-                          paymentModalDraft.payment === payment
+                        className={`min-h-14 rounded-lg border px-3 text-left text-sm font-black transition ${paymentModalDraft.payment === payment
                             ? "border-orange-300 bg-orange-400 text-black shadow-[0_14px_36px_rgba(251,146,60,0.24)]"
                             : "border-white/10 bg-black/[0.32] text-white hover:border-orange-300/45 hover:bg-orange-400/10"
-                        }`}
+                          }`}
                       >
                         {payment}
                       </button>
@@ -2236,22 +2234,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <button
                         type="button"
                         onClick={() => setPaymentModalDraft((current) => current ? { ...current, needsChange: false } : current)}
-                        className={`min-h-12 rounded-lg border px-3 text-sm font-black transition ${
-                          !paymentModalDraft.needsChange
+                        className={`min-h-12 rounded-lg border px-3 text-sm font-black transition ${!paymentModalDraft.needsChange
                             ? "border-emerald-300 bg-emerald-300 text-black"
                             : "border-white/10 bg-black/[0.28] text-white hover:bg-white/10"
-                        }`}
+                          }`}
                       >
                         Não
                       </button>
                       <button
                         type="button"
                         onClick={() => setPaymentModalDraft((current) => current ? { ...current, needsChange: true } : current)}
-                        className={`min-h-12 rounded-lg border px-3 text-sm font-black transition ${
-                          paymentModalDraft.needsChange
+                        className={`min-h-12 rounded-lg border px-3 text-sm font-black transition ${paymentModalDraft.needsChange
                             ? "border-emerald-300 bg-emerald-300 text-black"
                             : "border-white/10 bg-black/[0.28] text-white hover:bg-white/10"
-                        }`}
+                          }`}
                       >
                         Sim
                       </button>
@@ -2475,37 +2471,37 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     const stats = courierStats.find((currentCourier) => currentCourier.id === courier.id)
 
                     return (
-                    <div key={courier.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <strong className="text-sm font-black text-white">{courier.name}</strong>
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${courier.active ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"}`}>
-                            {courier.active ? "Ativo" : "Inativo"}
-                          </span>
-                          <span className="rounded-full border border-orange-300/25 bg-orange-400/10 px-2 py-0.5 text-[10px] font-black uppercase text-orange-100">
-                            {stats?.todayOrdersCount ?? 0} hoje
-                          </span>
+                      <div key={courier.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-sm font-black text-white">{courier.name}</strong>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${courier.active ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"}`}>
+                              {courier.active ? "Ativo" : "Inativo"}
+                            </span>
+                            <span className="rounded-full border border-orange-300/25 bg-orange-400/10 px-2 py-0.5 text-[10px] font-black uppercase text-orange-100">
+                              {stats?.todayOrdersCount ?? 0} hoje
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-xs text-zinc-500">
+                            {courier.phone || "Sem telefone"} {courier.notes ? `| ${courier.notes}` : ""}
+                          </p>
+                          <p className="mt-1 text-xs font-bold text-orange-100/70">
+                            {stats?.todayOrdersCount ?? 0} {(stats?.todayOrdersCount ?? 0) === 1 ? "entrega feita hoje" : "entregas feitas hoje"}
+                          </p>
                         </div>
-                        <p className="mt-1 truncate text-xs text-zinc-500">
-                          {courier.phone || "Sem telefone"} {courier.notes ? `| ${courier.notes}` : ""}
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-orange-100/70">
-                          {stats?.todayOrdersCount ?? 0} {(stats?.todayOrdersCount ?? 0) === 1 ? "entrega feita hoje" : "entregas feitas hoje"}
-                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => editCourier(courier)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                            <Edit3 size={14} />
+                            Editar
+                          </button>
+                          <button type="button" onClick={() => void toggleCourierStatus(courier)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition ${courier.active ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"}`}>
+                            {courier.active ? "Inativar" : "Ativar"}
+                          </button>
+                          <button type="button" onClick={() => void deleteCourier(courier)} className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.18]">
+                            Excluir
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => editCourier(courier)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
-                          <Edit3 size={14} />
-                          Editar
-                        </button>
-                        <button type="button" onClick={() => void toggleCourierStatus(courier)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition ${courier.active ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"}`}>
-                          {courier.active ? "Inativar" : "Ativar"}
-                        </button>
-                        <button type="button" onClick={() => void deleteCourier(courier)} className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.18]">
-                          Excluir
-                        </button>
-                      </div>
-                    </div>
                     )
                   })}
                 </div>
@@ -2774,7 +2770,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               )}
 
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
-	                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
                   <div className="space-y-4">
                     <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
                       <div className="mb-4 flex items-center gap-2">
@@ -2798,67 +2794,67 @@ export function Dashboard({ onLogout }: DashboardProps) {
                             className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
                           />
                         </label>
-	                        <label className="block">
-	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Tipo</span>
-	                          <select
-	                            value={draft.delivery}
-	                            onChange={(event) => updateDraftDelivery(event.target.value as DeliveryType)}
-	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                          >
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Tipo</span>
+                          <select
+                            value={draft.delivery}
+                            onChange={(event) => updateDraftDelivery(event.target.value as DeliveryType)}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          >
                             {deliveryOptions.map((delivery) => (
                               <option key={delivery} value={delivery}>{delivery}</option>
                             ))}
                           </select>
                         </label>
-	                        <label className="block">
-	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Pagamento</span>
-	                          <select
-	                            value={draft.payment}
-	                            onChange={(event) => {
-	                              const payment = event.target.value
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Pagamento</span>
+                          <select
+                            value={draft.payment}
+                            onChange={(event) => {
+                              const payment = event.target.value
 
-	                              setDraft({
-	                                ...draft,
-	                                changeFor: payment === "Dinheiro" ? draft.changeFor : 0,
-	                                needsChange: payment === "Dinheiro" ? draft.needsChange : false,
-	                                payment,
-	                              })
-	                            }}
-	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                          >
-                              <option value="">Selecionar pagamento</option>
-	                            {paymentOptions.map((payment) => (
-	                              <option key={payment} value={payment}>{payment}</option>
-	                            ))}
-	                          </select>
-	                        </label>
-	                      </div>
+                              setDraft({
+                                ...draft,
+                                changeFor: payment === "Dinheiro" ? draft.changeFor : 0,
+                                needsChange: payment === "Dinheiro" ? draft.needsChange : false,
+                                payment,
+                              })
+                            }}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          >
+                            <option value="">Selecionar pagamento</option>
+                            {paymentOptions.map((payment) => (
+                              <option key={payment} value={payment}>{payment}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
 
-	                      {draft.payment === "Dinheiro" && (
-	                        <div className="mt-3 grid gap-3 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-3 md:grid-cols-[180px_minmax(0,1fr)]">
-	                          <label className="flex h-11 items-center gap-3 rounded-lg border border-white/10 bg-black/[0.22] px-3 text-sm font-black text-white">
-	                            <input
-	                              type="checkbox"
-	                              checked={draft.needsChange}
-	                              onChange={(event) => setDraft({ ...draft, changeFor: event.target.checked ? draft.changeFor : 0, needsChange: event.target.checked })}
-	                              className="h-4 w-4 accent-orange-400"
-	                            />
-	                            Precisa de troco
-	                          </label>
-	                          {draft.needsChange && (
-	                            <label className="block">
-	                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Troco para quanto?</span>
-	                              <input
-	                                type="number"
-		                                min={calculateDraftTotal(draft)}
-		                                value={numberInputValue(draft.changeFor)}
-	                                onChange={(event) => setDraft({ ...draft, changeFor: Number(event.target.value) })}
-	                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                              />
-	                            </label>
-	                          )}
-	                        </div>
-	                      )}
+                      {draft.payment === "Dinheiro" && (
+                        <div className="mt-3 grid gap-3 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                          <label className="flex h-11 items-center gap-3 rounded-lg border border-white/10 bg-black/[0.22] px-3 text-sm font-black text-white">
+                            <input
+                              type="checkbox"
+                              checked={draft.needsChange}
+                              onChange={(event) => setDraft({ ...draft, changeFor: event.target.checked ? draft.changeFor : 0, needsChange: event.target.checked })}
+                              className="h-4 w-4 accent-orange-400"
+                            />
+                            Precisa de troco
+                          </label>
+                          {draft.needsChange && (
+                            <label className="block">
+                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Troco para quanto?</span>
+                              <input
+                                type="number"
+                                min={calculateDraftTotal(draft)}
+                                value={numberInputValue(draft.changeFor)}
+                                onChange={(event) => setDraft({ ...draft, changeFor: Number(event.target.value) })}
+                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                              />
+                            </label>
+                          )}
+                        </div>
+                      )}
 
                       <div className="mt-4 rounded-lg border border-orange-300/15 bg-orange-400/[0.06] p-3">
                         {draft.delivery === "Delivery" && (
@@ -2885,47 +2881,47 @@ export function Dashboard({ onLogout }: DashboardProps) {
                               <input
                                 type="number"
                                 min={0}
-	                                value={numberInputValue(draft.deliveryFee)}
-	                                onChange={(event) => {
-	                                  const deliveryFee = Number(event.target.value)
+                                value={numberInputValue(draft.deliveryFee)}
+                                onChange={(event) => {
+                                  const deliveryFee = Number(event.target.value)
 
-	                                  setDraft({ ...draft, deliveryFee, total: calculateDraftTotal({ ...draft, deliveryFee }) })
-	                                }}
+                                  setDraft({ ...draft, deliveryFee, total: calculateDraftTotal({ ...draft, deliveryFee }) })
+                                }}
                                 className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
                               />
                             </label>
-	                            <label className="block md:col-span-2">
-	                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Complemento</span>
-	                              <input
+                            <label className="block md:col-span-2">
+                              <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Complemento</span>
+                              <input
                                 value={draft.complement}
                                 onChange={(event) => setDraft({ ...draft, complement: event.target.value })}
                                 placeholder="Apartamento, casa, referência..."
-	                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-	                              />
-	                            </label>
-	                            {activeCouriers.length > 0 ? (
-	                              <label className="block md:col-span-2">
-	                                <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Entregador</span>
-	                                <select
-	                                  value={draft.courierId}
-	                                  onChange={(event) => setDraft({ ...draft, courierId: event.target.value })}
-	                                  className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                                >
-	                                  <option value="">Selecionar motoboy</option>
-	                                  {activeCouriers.map((courier) => (
-	                                    <option key={courier.id} value={courier.id}>
-	                                      {courier.name}
-	                                    </option>
-	                                  ))}
-	                                </select>
-	                              </label>
-	                            ) : (
-	                              <div className="rounded-lg border border-dashed border-orange-300/20 bg-black/[0.18] p-3 text-sm font-bold text-orange-100/70 md:col-span-2">
-	                                Cadastre um motoboy no caixa para liberar a seleção de entregador.
-	                              </div>
-	                            )}
-	                          </div>
-	                        )}
+                                className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                              />
+                            </label>
+                            {activeCouriers.length > 0 ? (
+                              <label className="block md:col-span-2">
+                                <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Entregador</span>
+                                <select
+                                  value={draft.courierId}
+                                  onChange={(event) => setDraft({ ...draft, courierId: event.target.value })}
+                                  className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                                >
+                                  <option value="">Selecionar motoboy</option>
+                                  {activeCouriers.map((courier) => (
+                                    <option key={courier.id} value={courier.id}>
+                                      {courier.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            ) : (
+                              <div className="rounded-lg border border-dashed border-orange-300/20 bg-black/[0.18] p-3 text-sm font-bold text-orange-100/70 md:col-span-2">
+                                Cadastre um motoboy no caixa para liberar a seleção de entregador.
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {draft.delivery === "Mesa" && (
                           <label className="block">
@@ -2953,131 +2949,131 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       </div>
                     </div>
 
-	                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
-	                      <div className="mb-4 flex items-center justify-between gap-3">
-	                        <div>
-	                          <p className="text-sm font-black text-white">Adicionar produto</p>
-	                          <p className="mt-1 text-xs text-zinc-500">Escolha a categoria igual no site e mande o item para o pedido final.</p>
-	                        </div>
-	                      </div>
+                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-white">Adicionar produto</p>
+                          <p className="mt-1 text-xs text-zinc-500">Escolha a categoria igual no site e mande o item para o pedido final.</p>
+                        </div>
+                      </div>
 
-	                      <div className="grid gap-2 md:grid-cols-[220px_minmax(0,1fr)_90px_auto]">
-	                        <label className="block">
-	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Categoria</span>
-	                          <select
-	                            value={draft.productCategoryToAddId}
-	                            onChange={(event) => setDraft({ ...draft, productCategoryToAddId: Number(event.target.value), productToAddId: 0 })}
-	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                          >
-	                            <option value={0}>Todas</option>
-	                            {activeMenuCategories.map((category) => (
-	                              <option key={category.id} value={category.id}>{category.nome}</option>
-	                            ))}
-	                          </select>
-	                        </label>
-	                        <label className="block">
-	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Produto</span>
-	                          <select
-	                            value={draft.productToAddId}
-	                            onChange={(event) => setDraft({ ...draft, productToAddId: Number(event.target.value) })}
-	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                          >
-	                            <option value={0}>Selecionar produto</option>
-	                            {draftProductsInCategory.map((product) => (
-	                              <option key={product.id} value={product.id}>
-	                                {product.nome} - {formatCurrency(product.preco)}
-	                              </option>
-	                            ))}
-	                          </select>
-	                        </label>
-	                        <label className="block">
-	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Qtd.</span>
-	                        <input
-	                          type="number"
-	                          min={1}
-		                          value={numberInputValue(draft.productToAddQuantity)}
-	                          onChange={(event) => setDraft({ ...draft, productToAddQuantity: Number(event.target.value) })}
-	                          className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                        />
-	                        </label>
-	                        <button
-	                          type="button"
-	                          onClick={addDraftProduct}
-	                          disabled={!draft.productToAddId}
-	                          className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
-	                        >
-	                          <Plus size={14} />
-	                          Adicionar
-	                        </button>
+                      <div className="grid gap-2 md:grid-cols-[220px_minmax(0,1fr)_90px_auto]">
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Categoria</span>
+                          <select
+                            value={draft.productCategoryToAddId}
+                            onChange={(event) => setDraft({ ...draft, productCategoryToAddId: Number(event.target.value), productToAddId: 0 })}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          >
+                            <option value={0}>Todas</option>
+                            {activeMenuCategories.map((category) => (
+                              <option key={category.id} value={category.id}>{category.nome}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Produto</span>
+                          <select
+                            value={draft.productToAddId}
+                            onChange={(event) => setDraft({ ...draft, productToAddId: Number(event.target.value) })}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          >
+                            <option value={0}>Selecionar produto</option>
+                            {draftProductsInCategory.map((product) => (
+                              <option key={product.id} value={product.id}>
+                                {product.nome} - {formatCurrency(product.preco)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Qtd.</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={numberInputValue(draft.productToAddQuantity)}
+                            onChange={(event) => setDraft({ ...draft, productToAddQuantity: Number(event.target.value) })}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={addDraftProduct}
+                          disabled={!draft.productToAddId}
+                          className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Plus size={14} />
+                          Adicionar
+                        </button>
                         <input
                           value={draft.productToAddNote}
                           onChange={(event) => setDraft({ ...draft, productToAddNote: event.target.value })}
                           placeholder="Observação do produto novo: sem cebola, gelado, trocar sabor..."
-	                          className="h-11 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60 md:col-span-4"
-	                        />
-	                      </div>
-	                    </div>
+                          className="h-11 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60 md:col-span-4"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-	                  <aside className="space-y-4">
-	                    <div className="rounded-lg border border-orange-300/25 bg-orange-400/[0.08] p-4">
-	                      <div className="flex items-center justify-between gap-3">
-	                        <div>
-	                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-200">Pedido final</p>
-	                          <p className="mt-1 text-xs text-orange-100/70">Edite ou remova qualquer item antes de salvar.</p>
-	                        </div>
-	                        <span className="rounded-lg bg-black/25 px-2 py-1 text-xs font-black text-white">
-	                          {draft.items.length} {draft.items.length === 1 ? "item" : "itens"}
-	                        </span>
-	                      </div>
-	                      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-	                        {draft.items.length === 0 && (
-	                          <div className="rounded-lg border border-dashed border-white/10 bg-black/[0.18] p-4 text-center text-sm font-bold text-orange-100/70">
-	                            Nenhum item no pedido.
-	                          </div>
-	                        )}
-	                        {draft.items.map((item, index) => (
-	                          <div key={`${index}-${item}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_40px]">
-	                            <input
-	                              value={item}
-	                              onChange={(event) => {
-	                                const nextItems = [...draft.items]
+                  <aside className="space-y-4">
+                    <div className="rounded-lg border border-orange-300/25 bg-orange-400/[0.08] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-200">Pedido final</p>
+                          <p className="mt-1 text-xs text-orange-100/70">Edite ou remova qualquer item antes de salvar.</p>
+                        </div>
+                        <span className="rounded-lg bg-black/25 px-2 py-1 text-xs font-black text-white">
+                          {draft.items.length} {draft.items.length === 1 ? "item" : "itens"}
+                        </span>
+                      </div>
+                      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                        {draft.items.length === 0 && (
+                          <div className="rounded-lg border border-dashed border-white/10 bg-black/[0.18] p-4 text-center text-sm font-bold text-orange-100/70">
+                            Nenhum item no pedido.
+                          </div>
+                        )}
+                        {draft.items.map((item, index) => (
+                          <div key={`${index}-${item}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_40px]">
+                            <input
+                              value={item}
+                              onChange={(event) => {
+                                const nextItems = [...draft.items]
 
-	                                nextItems[index] = event.target.value
-	                                setDraft({ ...draft, items: nextItems })
-	                              }}
-	                              placeholder="Ex: 1x X-Bacon + cheddar (sem cebola)"
-	                              className="h-11 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-	                            />
-	                            <button
-	                              type="button"
-	                              onClick={() => setDraft({ ...draft, items: draft.items.filter((_, itemIndex) => itemIndex !== index) })}
-	                              className="grid h-11 place-items-center rounded-lg border border-red-300/25 bg-red-400/10 text-red-100 transition hover:bg-red-400/[0.18]"
-	                              aria-label="Remover item"
-	                            >
-	                              <X size={14} />
-	                            </button>
-	                          </div>
-	                        ))}
-	                      </div>
-	                    </div>
+                                nextItems[index] = event.target.value
+                                setDraft({ ...draft, items: nextItems })
+                              }}
+                              placeholder="Ex: 1x X-Bacon + cheddar (sem cebola)"
+                              className="h-11 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setDraft({ ...draft, items: draft.items.filter((_, itemIndex) => itemIndex !== index) })}
+                              className="grid h-11 place-items-center rounded-lg border border-red-300/25 bg-red-400/10 text-red-100 transition hover:bg-red-400/[0.18]"
+                              aria-label="Remover item"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-	                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
+                    <div className="rounded-lg border border-white/10 bg-black/[0.22] p-4">
                       <p className="text-sm font-black text-white">Valores e desconto</p>
                       <div className="mt-4 space-y-3">
                         <label className="block">
-	                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Subtotal do pedido</span>
-	                          <input
-	                            type="number"
-	                            min={0}
-		                            value={numberInputValue(draft.subtotal)}
-	                            onChange={(event) => {
-	                              const subtotal = Number(event.target.value)
+                          <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Subtotal do pedido</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={numberInputValue(draft.subtotal)}
+                            onChange={(event) => {
+                              const subtotal = Number(event.target.value)
 
-	                              setDraft({ ...draft, subtotal, total: calculateDraftTotal({ ...draft, subtotal }) })
-	                            }}
-	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
-	                          />
+                              setDraft({ ...draft, subtotal, total: calculateDraftTotal({ ...draft, subtotal }) })
+                            }}
+                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
+                          />
                         </label>
                         <div className="grid grid-cols-2 gap-2">
                           <label className="block">
@@ -3085,12 +3081,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
                             <input
                               type="number"
                               min={0}
-	                              value={numberInputValue(draft.discount)}
-	                              onChange={(event) => {
-	                                const discount = Number(event.target.value)
+                              value={numberInputValue(draft.discount)}
+                              onChange={(event) => {
+                                const discount = Number(event.target.value)
 
-	                                setDraft({ ...draft, discount, discountPercent: 0, total: calculateDraftTotal({ ...draft, discount, discountPercent: 0 }) })
-	                              }}
+                                setDraft({ ...draft, discount, discountPercent: 0, total: calculateDraftTotal({ ...draft, discount, discountPercent: 0 }) })
+                              }}
                               className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
                             />
                           </label>
@@ -3099,12 +3095,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
                             <input
                               type="number"
                               min={0}
-	                              value={numberInputValue(draft.discountPercent)}
-	                              onChange={(event) => {
-	                                const discountPercent = Math.min(Number(event.target.value), 35)
+                              value={numberInputValue(draft.discountPercent)}
+                              onChange={(event) => {
+                                const discountPercent = Math.min(Number(event.target.value), 35)
 
-	                                setDraft({ ...draft, discount: 0, discountPercent, total: calculateDraftTotal({ ...draft, discount: 0, discountPercent }) })
-	                              }}
+                                setDraft({ ...draft, discount: 0, discountPercent, total: calculateDraftTotal({ ...draft, discount: 0, discountPercent }) })
+                              }}
                               className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
                             />
                           </label>
@@ -3131,114 +3127,113 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       />
                     </div>
 
-	                    <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-4">
-	                      <p className="text-[10px] font-black uppercase text-emerald-100/70">Prévia do pedido</p>
-	                      <strong className="mt-2 block text-2xl text-emerald-100">{formatCurrency(calculateDraftTotal(draft))}</strong>
-	                      <p className="mt-2 text-xs font-bold text-emerald-100/70">{formatDraftAddress(draft)}</p>
-	                      {draft.delivery === "Delivery" && (
-	                        <p className="mt-2 text-xs font-bold text-emerald-100/70">
-	                          Entregador: {couriers.find((courier) => courier.id === draft.courierId)?.name ?? "não selecionado"}
-	                        </p>
-	                      )}
-	                      {draft.payment === "Dinheiro" && draft.needsChange && (
-	                        <p className="mt-2 text-xs font-bold text-emerald-100/70">
-	                          Troco para {formatCurrency(draft.changeFor || 0)}
-	                        </p>
-	                      )}
-	                    </div>
+                    <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-4">
+                      <p className="text-[10px] font-black uppercase text-emerald-100/70">Prévia do pedido</p>
+                      <strong className="mt-2 block text-2xl text-emerald-100">{formatCurrency(calculateDraftTotal(draft))}</strong>
+                      <p className="mt-2 text-xs font-bold text-emerald-100/70">{formatDraftAddress(draft)}</p>
+                      {draft.delivery === "Delivery" && (
+                        <p className="mt-2 text-xs font-bold text-emerald-100/70">
+                          Entregador: {couriers.find((courier) => courier.id === draft.courierId)?.name ?? "não selecionado"}
+                        </p>
+                      )}
+                      {draft.payment === "Dinheiro" && draft.needsChange && (
+                        <p className="mt-2 text-xs font-bold text-emerald-100/70">
+                          Troco para {formatCurrency(draft.changeFor || 0)}
+                        </p>
+                      )}
+                    </div>
                   </aside>
-	              </div>
-	            </div>
+                </div>
+              </div>
 
-	            <details className="mt-4 rounded-lg border border-white/10 bg-black/[0.12] p-3">
-	              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-white">
-	                <span>Configuração de motoboys</span>
-	                <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-black uppercase text-zinc-400">
-	                  {couriers.length} cadastrados
-	                </span>
-	              </summary>
+              <details className="mt-4 rounded-lg border border-white/10 bg-black/[0.12] p-3">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-white">
+                  <span>Configuração de motoboys</span>
+                  <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-black uppercase text-zinc-400">
+                    {couriers.length} cadastrados
+                  </span>
+                </summary>
 
-	              <div className="mt-4 border-t border-white/10 pt-4">
-	                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-	                  <div>
-	                    <p className="text-xs font-bold text-zinc-500">Área administrativa de entregadores.</p>
-	                  </div>
-	                  <div className="grid gap-2 sm:grid-cols-[220px_auto_auto]">
-	                    <input
-	                      value={courierDraft.name}
-	                      onChange={(event) => setCourierDraft({ ...courierDraft, name: event.target.value })}
-	                      placeholder="Nome do motoboy"
-	                      className="h-10 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-	                    />
-	                    <button
-	                      type="button"
-	                      onClick={addCourier}
-	                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-	                    >
-	                      <Plus size={14} />
-	                      {editingCourierId ? "Salvar" : "Cadastrar"}
-	                    </button>
-	                    {editingCourierId && (
-	                      <button
-	                        type="button"
-	                        onClick={() => {
-	                          setCourierDraft(emptyDeliveryPersonDraft)
-	                          setEditingCourierId(null)
-	                        }}
-	                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
-	                      >
-	                        <X size={14} />
-	                        Cancelar
-	                      </button>
-	                    )}
-	                  </div>
-	                </div>
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-zinc-500">Área administrativa de entregadores.</p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-[220px_auto_auto]">
+                      <input
+                        value={courierDraft.name}
+                        onChange={(event) => setCourierDraft({ ...courierDraft, name: event.target.value })}
+                        placeholder="Nome do motoboy"
+                        className="h-10 rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
+                      />
+                      <button
+                        type="button"
+                        onClick={addCourier}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+                      >
+                        <Plus size={14} />
+                        {editingCourierId ? "Salvar" : "Cadastrar"}
+                      </button>
+                      {editingCourierId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCourierDraft(emptyDeliveryPersonDraft)
+                            setEditingCourierId(null)
+                          }}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                        >
+                          <X size={14} />
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-	                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-	                  {courierStats.length === 0 && (
-	                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-4 text-sm font-bold text-zinc-500 md:col-span-2 xl:col-span-4">
-	                      Nenhum motoboy cadastrado.
-	                    </div>
-	                  )}
-	                  {courierStats.map((courier) => (
-	                    <div key={courier.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-	                      <div className="flex items-start justify-between gap-3">
-	                        <div className="min-w-0">
-	                          <strong className="block truncate text-sm font-black text-white">{courier.name}</strong>
-	                          <p className="mt-1 truncate text-xs text-zinc-500">
-	                            {courier.ordersCount} {courier.ordersCount === 1 ? "entrega" : "entregas"}
-	                          </p>
-	                        </div>
-	                        <button
-	                          type="button"
-	                          onClick={() => setCouriers((currentCouriers) => currentCouriers.map((currentCourier) => (
-	                            currentCourier.id === courier.id ? { ...currentCourier, active: !currentCourier.active } : currentCourier
-	                          )))}
-	                          className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${
-	                            courier.active
-	                              ? "border border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
-	                              : "border border-red-300/25 bg-red-400/10 text-red-100"
-	                          }`}
-	                        >
-	                          {courier.active ? "Ativo" : "Inativo"}
-	                        </button>
-	                      </div>
-	                      <div className="mt-3 flex flex-wrap gap-2">
-	                        <button
-	                          type="button"
-	                          onClick={() => editCourier(courier)}
-	                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-[11px] font-black text-white transition hover:bg-white/10"
-	                        >
-	                          <Edit3 size={13} />
-	                          Editar
-	                        </button>
-	                      </div>
-	                    </div>
-	                  ))}
-	                </div>
-	              </div>
-	            </details>
-	          </section>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                    {courierStats.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-4 text-sm font-bold text-zinc-500 md:col-span-2 xl:col-span-4">
+                        Nenhum motoboy cadastrado.
+                      </div>
+                    )}
+                    {courierStats.map((courier) => (
+                      <div key={courier.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <strong className="block truncate text-sm font-black text-white">{courier.name}</strong>
+                            <p className="mt-1 truncate text-xs text-zinc-500">
+                              {courier.ordersCount} {courier.ordersCount === 1 ? "entrega" : "entregas"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setCouriers((currentCouriers) => currentCouriers.map((currentCourier) => (
+                              currentCourier.id === courier.id ? { ...currentCourier, active: !currentCourier.active } : currentCourier
+                            )))}
+                            className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${courier.active
+                                ? "border border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+                                : "border border-red-300/25 bg-red-400/10 text-red-100"
+                              }`}
+                          >
+                            {courier.active ? "Ativo" : "Inativo"}
+                          </button>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editCourier(courier)}
+                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-[11px] font-black text-white transition hover:bg-white/10"
+                          >
+                            <Edit3 size={13} />
+                            Editar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </details>
+            </section>
           </div>
         )}
 
@@ -3260,20 +3255,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <LayoutDashboard size={15} />
                   Voltar ao dashboard
                 </button>
-                <span className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-black ${
-                  menuAdmin.status === "online"
+                <span className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-black ${menuAdmin.status === "online"
                     ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
                     : menuAdmin.status === "offline"
                       ? "border-red-300/25 bg-red-400/10 text-red-100"
                       : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
-                }`}>
-                  <span className={`h-2.5 w-2.5 rounded-full ${
-                    menuAdmin.status === "online"
+                  }`}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${menuAdmin.status === "online"
                       ? "bg-emerald-300"
                       : menuAdmin.status === "offline"
                         ? "bg-red-300"
                         : "bg-cyan-300"
-                  }`} />
+                    }`} />
                   {menuConnectionLabel}
                 </span>
               </div>
@@ -3297,11 +3290,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   key={value}
                   type="button"
                   onClick={() => setMenuPanelSection(value)}
-                  className={`h-9 rounded-lg px-3 text-xs font-black transition ${
-                    menuPanelSection === value
+                  className={`h-9 rounded-lg px-3 text-xs font-black transition ${menuPanelSection === value
                       ? "bg-orange-400 text-black"
                       : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                  }`}
+                    }`}
                 >
                   {label} ({count})
                 </button>
@@ -3309,168 +3301,166 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </div>
 
             {menuPanelSection === "categorias" && (
-            <div className="mt-4 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-              <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
-                <div className="flex items-center gap-2 text-sm font-black text-white">
-                  <Plus size={16} className="text-orange-300" />
-                  {editingCategoryId ? "Editar categoria" : "Nova categoria"}
-                </div>
+              <div className="mt-4 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+                <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                  <div className="flex items-center gap-2 text-sm font-black text-white">
+                    <Plus size={16} className="text-orange-300" />
+                    {editingCategoryId ? "Editar categoria" : "Nova categoria"}
+                  </div>
 
-                <div className="mt-3 space-y-3">
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Nome</span>
-                    <input
-                      value={categoryDraft.nome}
-                      onChange={(event) => setCategoryDraft({ ...categoryDraft, nome: event.target.value })}
-                      placeholder="Ex: Sobremesas"
-                      className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descrição</span>
-                    <textarea
-                      value={categoryDraft.descricao}
-                      onChange={(event) => setCategoryDraft({ ...categoryDraft, descricao: event.target.value })}
-                      placeholder="Doces da casa"
-                      className="min-h-20 w-full resize-none rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </label>
-
-                  <div className="block">
-                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
-                    {categoryDraft.imagem && (
-                      <div className="mb-2 overflow-hidden rounded-lg border border-white/10 bg-black/[0.24]">
-                        <img src={categoryDraft.imagem} alt="" className="h-24 w-full object-cover" />
-                      </div>
-                    )}
-                    <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
-                      <Upload size={14} />
-                      {categoryDraft.imageFile ? categoryDraft.imageFile.name : "Escolher JPEG/PNG"}
+                  <div className="mt-3 space-y-3">
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Nome</span>
                       <input
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        className="hidden"
-                        onChange={(event) => selectMenuImageFile(
-                          event,
-                          (imageFile, previewUrl) => setCategoryDraft((currentDraft) => ({ ...currentDraft, imageFile, imagem: previewUrl })),
-                          (message) => {
-                            setCategoryFeedback(message)
-                            showNotice(message)
-                          }
-                        )}
+                        value={categoryDraft.nome}
+                        onChange={(event) => setCategoryDraft({ ...categoryDraft, nome: event.target.value })}
+                        placeholder="Ex: Sobremesas"
+                        className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
                       />
                     </label>
-                    <p className="mt-1 text-[11px] font-bold text-zinc-500">JPEG ou PNG, até 5MB.</p>
-                  </div>
 
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Ordem</span>
-                    <input
-                      type="number"
-	                      value={numberInputValue(categoryDraft.ordem)}
-                      onChange={(event) => setCategoryDraft({ ...categoryDraft, ordem: Number(event.target.value) })}
-                      className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </label>
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Descrição</span>
+                      <textarea
+                        value={categoryDraft.descricao}
+                        onChange={(event) => setCategoryDraft({ ...categoryDraft, descricao: event.target.value })}
+                        placeholder="Doces da casa"
+                        className="min-h-20 w-full resize-none rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </label>
 
-                  <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
-                    Categoria ativa
-                    <input
-                      type="checkbox"
-                      checked={categoryDraft.ativo}
-                      onChange={(event) => setCategoryDraft({ ...categoryDraft, ativo: event.target.checked })}
-                      className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </label>
+                    <div className="block">
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
+                      {categoryDraft.imagem && (
+                        <div className="mb-2 overflow-hidden rounded-lg border border-white/10 bg-black/[0.24]">
+                          <img src={categoryDraft.imagem} alt="" className="h-24 w-full object-cover" />
+                        </div>
+                      )}
+                      <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                        <Upload size={14} />
+                        {categoryDraft.imageFile ? categoryDraft.imageFile.name : "Escolher JPEG/PNG"}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png"
+                          className="hidden"
+                          onChange={(event) => selectMenuImageFile(
+                            event,
+                            (imageFile, previewUrl) => setCategoryDraft((currentDraft) => ({ ...currentDraft, imageFile, imagem: previewUrl })),
+                            (message) => {
+                              setCategoryFeedback(message)
+                              showNotice(message)
+                            }
+                          )}
+                        />
+                      </label>
+                      <p className="mt-1 text-[11px] font-bold text-zinc-500">JPEG ou PNG, até 5MB.</p>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={saveCategory}
-                    disabled={categorySaving}
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {categorySaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                    {categorySaving ? "Salvando..." : editingCategoryId ? "Salvar categoria" : "Adicionar categoria"}
-                  </button>
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Ordem</span>
+                      <input
+                        type="number"
+                        value={numberInputValue(categoryDraft.ordem)}
+                        onChange={(event) => setCategoryDraft({ ...categoryDraft, ordem: Number(event.target.value) })}
+                        className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </label>
 
-                  {categoryFeedback && (
-                    <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-zinc-200">
-                      {categoryFeedback}
-                    </p>
-                  )}
+                    <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
+                      Categoria ativa
+                      <input
+                        type="checkbox"
+                        checked={categoryDraft.ativo}
+                        onChange={(event) => setCategoryDraft({ ...categoryDraft, ativo: event.target.checked })}
+                        className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </label>
 
-                  {editingCategoryId && (
                     <button
                       type="button"
-                      onClick={cancelCategoryEdit}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                      onClick={saveCategory}
+                      disabled={categorySaving}
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <X size={15} />
-                      Cancelar edição
+                      {categorySaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                      {categorySaving ? "Salvando..." : editingCategoryId ? "Salvar categoria" : "Adicionar categoria"}
                     </button>
-                  )}
-                </div>
-              </div>
 
-              <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-black text-white">Categorias do site</p>
-                    <p className="mt-1 text-xs text-zinc-500">A rota publica mostra somente categorias ativas.</p>
+                    {categoryFeedback && (
+                      <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-zinc-200">
+                        {categoryFeedback}
+                      </p>
+                    )}
+
+                    {editingCategoryId && (
+                      <button
+                        type="button"
+                        onClick={cancelCategoryEdit}
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                      >
+                        <X size={15} />
+                        Cancelar edição
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-                  {menuAdmin.categories.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                      Nenhuma categoria carregada do backend do cardápio.
+                <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-black text-white">Categorias do site</p>
+                      <p className="mt-1 text-xs text-zinc-500">A rota publica mostra somente categorias ativas.</p>
                     </div>
-                  )}
+                  </div>
 
-                  {menuAdmin.categories.map((category) => (
-                    <div key={category.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <strong className="text-sm font-black text-white">{category.nome}</strong>
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
-                            category.ativo
-                              ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
-                              : "border-red-300/25 bg-red-400/10 text-red-100"
-                          }`}>
-                            {category.ativo ? "Ativa" : "Inativa"}
-                          </span>
+                  <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {menuAdmin.categories.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
+                        Nenhuma categoria carregada do backend do cardápio.
+                      </div>
+                    )}
+
+                    {menuAdmin.categories.map((category) => (
+                      <div key={category.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-sm font-black text-white">{category.nome}</strong>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${category.ativo
+                                ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+                                : "border-red-300/25 bg-red-400/10 text-red-100"
+                              }`}>
+                              {category.ativo ? "Ativa" : "Inativa"}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-xs text-zinc-500">
+                            Ordem {category.ordem} | {category.descricao || "Sem descrição"} | {category.imagem || "Sem imagem"}
+                          </p>
                         </div>
-                        <p className="mt-1 truncate text-xs text-zinc-500">
-                          Ordem {category.ordem} | {category.descricao || "Sem descrição"} | {category.imagem || "Sem imagem"}
-                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editCategory(category)}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Edit3 size={14} />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleCategoryStatus(category)}
+                            className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${category.ativo
+                                ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]"
+                                : "bg-emerald-400 text-black hover:bg-emerald-300"
+                              }`}
+                          >
+                            {category.ativo ? "Desativar" : "Ativar"}
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => editCategory(category)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Edit3 size={14} />
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleCategoryStatus(category)}
-                          className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                            category.ativo
-                              ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]"
-                              : "bg-emerald-400 text-black hover:bg-emerald-300"
-                          }`}
-                        >
-                          {category.ativo ? "Desativar" : "Ativar"}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
             )}
 
             {menuPanelSection === "produtos" && (
@@ -3520,7 +3510,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preço</span>
                         <input
                           type="number"
-	                          value={numberInputValue(productDraft.preco)}
+                          value={numberInputValue(productDraft.preco)}
                           onChange={(event) => setProductDraft({ ...productDraft, preco: Number(event.target.value) })}
                           className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
                         />
@@ -3545,8 +3535,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     <div className="block">
                       <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
                       {productDraft.imagem && (
-                        <div className="mb-2 overflow-hidden rounded-lg border border-white/10 bg-black/[0.24]">
-                          <img src={productDraft.imagem} alt="" className="h-24 w-full object-cover" />
+                        <div className="h-20 w-20 overflow-hidden rounded-2xl bg-zinc-100">
+                          <img
+                            src={productDraft.imagem}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
                         </div>
                       )}
                       <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
@@ -3586,12 +3580,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       />
                     </label>
 
-                  <button
-                    type="button"
-                    onClick={saveProduct}
-                    disabled={productSaving || !productDraft.nome.trim() || !productDraft.categoriaId}
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
+                    <button
+                      type="button"
+                      onClick={saveProduct}
+                      disabled={productSaving || !productDraft.nome.trim() || !productDraft.categoriaId}
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                       {productSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                       {productSaving ? "Salvando..." : editingProductId ? "Salvar produto" : "Adicionar produto"}
                     </button>
@@ -3648,11 +3642,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     <button
                       type="button"
                       onClick={() => setProductCategoryFilter(0)}
-                      className={`h-8 rounded-lg px-3 text-[11px] font-black transition ${
-                        productCategoryFilter === 0
+                      className={`h-8 rounded-lg px-3 text-[11px] font-black transition ${productCategoryFilter === 0
                           ? "bg-orange-400 text-black"
                           : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                      }`}
+                        }`}
                     >
                       Todas
                     </button>
@@ -3661,11 +3654,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         key={category.id}
                         type="button"
                         onClick={() => setProductCategoryFilter(category.id)}
-                        className={`h-8 rounded-lg px-3 text-[11px] font-black transition ${
-                          productCategoryFilter === category.id
+                        className={`h-8 rounded-lg px-3 text-[11px] font-black transition ${productCategoryFilter === category.id
                             ? "bg-orange-400 text-black"
                             : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                        }`}
+                          }`}
                       >
                         {category.nome}
                       </button>
@@ -3713,11 +3705,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         </span>
                                       )}
                                     </div>
-                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
-                                      product.ativo
+                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${product.ativo
                                         ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
                                         : "border-red-300/25 bg-red-400/10 text-red-100"
-                                    }`}>
+                                      }`}>
                                       {product.ativo ? "Ativo" : "Inativo"}
                                     </span>
                                     <span className="text-xs font-black text-orange-200">R$ {product.preco}</span>
@@ -3736,9 +3727,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                     <Edit3 size={14} />
                                     Editar
                                   </button>
-                                  <button type="button" onClick={() => toggleProductStatus(product)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                                    product.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
-                                  }`}>
+                                  <button type="button" onClick={() => toggleProductStatus(product)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${product.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
+                                    }`}>
                                     {product.ativo ? "Desativar" : "Ativar"}
                                   </button>
                                 </div>
@@ -3771,8 +3761,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <textarea value={additionalDraft.descricao} onChange={(event) => setAdditionalDraft({ ...additionalDraft, descricao: event.target.value })} placeholder="Adicional de bacon crocante" className="min-h-20 w-full resize-none rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:opacity-50" />
                     </label>
                     <label className="block">
-	                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preço</span>
-	                      <input type="number" value={numberInputValue(additionalDraft.preco)} onChange={(event) => setAdditionalDraft({ ...additionalDraft, preco: Number(event.target.value) })} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50" />
+                      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Preço</span>
+                      <input type="number" value={numberInputValue(additionalDraft.preco)} onChange={(event) => setAdditionalDraft({ ...additionalDraft, preco: Number(event.target.value) })} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50" />
                     </label>
                     <div className="block">
                       <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Imagem</span>
@@ -3830,9 +3820,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <strong className="text-sm font-black text-white">{additional.nome}</strong>
-                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
-                              additional.ativo ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"
-                            }`}>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${additional.ativo ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"
+                              }`}>
                               {additional.ativo ? "Ativo" : "Inativo"}
                             </span>
                             <span className="text-xs font-black text-orange-200">R$ {additional.preco}</span>
@@ -3844,9 +3833,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                             <Edit3 size={14} />
                             Editar
                           </button>
-                          <button type="button" onClick={() => toggleAdditionalStatus(additional)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                            additional.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
-                          }`}>
+                          <button type="button" onClick={() => toggleAdditionalStatus(additional)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${additional.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
+                            }`}>
                             {additional.ativo ? "Desativar" : "Ativar"}
                           </button>
                         </div>
@@ -3897,23 +3885,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
             <div className="mt-4 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
               <div className="space-y-4">
-                <article className={`rounded-lg border p-4 ${
-                  whatsAppBotStatus?.connected
+                <article className={`rounded-lg border p-4 ${whatsAppBotStatus?.connected
                     ? "border-emerald-300/25 bg-emerald-400/10"
                     : "border-orange-300/25 bg-orange-400/[0.08]"
-                }`}>
+                  }`}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Status</p>
-                      <strong className={`mt-1 block text-2xl font-black ${
-                        whatsAppBotStatus?.connected ? "text-emerald-100" : "text-orange-100"
-                      }`}>
+                      <strong className={`mt-1 block text-2xl font-black ${whatsAppBotStatus?.connected ? "text-emerald-100" : "text-orange-100"
+                        }`}>
                         {whatsAppBotStatus?.connected ? "Conectado" : "Aguardando conexão"}
                       </strong>
                     </div>
-                    <span className={`grid h-12 w-12 place-items-center rounded-lg ${
-                      whatsAppBotStatus?.connected ? "bg-emerald-400 text-black" : "bg-orange-400 text-black"
-                    }`}>
+                    <span className={`grid h-12 w-12 place-items-center rounded-lg ${whatsAppBotStatus?.connected ? "bg-emerald-400 text-black" : "bg-orange-400 text-black"
+                      }`}>
                       <MessageCircle size={24} />
                     </span>
                   </div>
@@ -3953,20 +3938,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">QR Code</p>
                     <h3 className="text-lg font-black text-white">Conectar WhatsApp da loja</h3>
                   </div>
-                  <span className={`inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 text-[11px] font-black uppercase ${
-                    whatsAppBotStatus?.connected
+                  <span className={`inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 text-[11px] font-black uppercase ${whatsAppBotStatus?.connected
                       ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
                       : whatsAppBotStatus?.qrCodeDataUrl
                         ? "border-orange-300/25 bg-orange-400/10 text-orange-100"
                         : "border-white/10 bg-white/5 text-zinc-400"
-                  }`}>
-                    <span className={`h-2 w-2 rounded-full ${
-                      whatsAppBotStatus?.connected
+                    }`}>
+                    <span className={`h-2 w-2 rounded-full ${whatsAppBotStatus?.connected
                         ? "bg-emerald-300"
                         : whatsAppBotStatus?.qrCodeDataUrl
                           ? "bg-orange-300"
                           : "bg-zinc-500"
-                    }`} />
+                      }`} />
                     {whatsAppBotStatus?.connected ? "Conectado" : whatsAppBotStatus?.qrCodeDataUrl ? "Escanear" : "Sem QR"}
                   </span>
                 </div>
@@ -4191,9 +4174,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </article>
             </div>
 
-	            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-	              {[
-	                ["Pix", paymentSummary.pix],
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ["Pix", paymentSummary.pix],
                 ["Dinheiro", paymentSummary.dinheiro],
                 ["Cartão", paymentSummary.cartao],
                 ["Outros", paymentSummary.outros],
@@ -4202,20 +4185,19 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <p className="text-[10px] font-black uppercase text-zinc-500">{label}</p>
                   <strong className="mt-1 block text-lg font-black text-white">{formatCurrency(Number(value))}</strong>
                 </article>
-	              ))}
-	            </div>
+              ))}
+            </div>
 
-	            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               {(Object.keys(cashTabLabels) as CashTab[]).map((tab) => (
                 <button
                   key={tab}
                   type="button"
                   onClick={() => setCashTab(tab)}
-                  className={`h-9 rounded-lg px-3 text-xs font-black transition ${
-                    cashTab === tab
+                  className={`h-9 rounded-lg px-3 text-xs font-black transition ${cashTab === tab
                       ? "bg-orange-400 text-black"
                       : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                  }`}
+                    }`}
                 >
                   {cashTabLabels[tab]}
                 </button>
@@ -4267,7 +4249,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     <div key={order.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <strong className="text-sm font-black text-white">Pedido #{order.id}</strong>
-	                        <span className="text-xs font-black text-orange-200">{formatCurrency(calculateOrderTotal(order))}</span>
+                        <span className="text-xs font-black text-orange-200">{formatCurrency(calculateOrderTotal(order))}</span>
                       </div>
                       <p className="mt-1 text-xs text-zinc-500">
                         {statusLabels[order.status] ?? order.status} | {order.delivery} | {order.payment}
@@ -4287,7 +4269,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">
                   Clientes
                 </p>
-	                <h2 className="text-xl font-black text-white">Histórico e recorrência</h2>
+                <h2 className="text-xl font-black text-white">Histórico e recorrência</h2>
               </div>
               <span className="inline-flex h-9 items-center gap-2 rounded-lg border border-orange-300/25 bg-orange-400/10 px-3 text-xs font-black text-orange-100">
                 <Users size={15} />
@@ -4299,7 +4281,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <div className="mt-4 grid min-h-[360px] place-items-center rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-8 text-center">
                 <div>
                   <Users className="mx-auto text-zinc-500" size={44} />
-	                  <h3 className="mt-4 text-lg font-black text-white">Ainda não há clientes no painel</h3>
+                  <h3 className="mt-4 text-lg font-black text-white">Ainda não há clientes no painel</h3>
                   <p className="mt-2 text-sm leading-6 text-zinc-500">
                     Quando os pedidos chegarem, o histórico por telefone aparece aqui automaticamente.
                   </p>
@@ -4316,11 +4298,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         key={client.key}
                         type="button"
                         onClick={() => setSelectedClientPhone(client.key)}
-                        className={`w-full rounded-lg border p-3 text-left transition ${
-                          selectedClient?.key === client.key
+                        className={`w-full rounded-lg border p-3 text-left transition ${selectedClient?.key === client.key
                             ? "border-orange-300/60 bg-orange-400/[0.12]"
                             : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <strong className="truncate text-sm font-black text-white">{client.name}</strong>
@@ -4388,7 +4369,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     </div>
 
                     <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-3">
-	                      <p className="text-sm font-black text-white">Histórico de pedidos</p>
+                      <p className="text-sm font-black text-white">Histórico de pedidos</p>
                       <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                         {selectedClient.orders.map((order) => (
                           <div key={`${selectedClient.key}-${order.id}`} className="flex flex-col gap-2 rounded-lg border border-white/10 bg-black/[0.18] p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -4396,7 +4377,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                               <strong className="text-sm font-black text-white">Pedido #{order.id}</strong>
                               <p className="mt-1 text-xs text-zinc-500">{order.time} | {order.delivery} | {order.payment}</p>
                             </div>
-	                            <span className="text-xs font-black text-orange-200">{formatCurrency(calculateOrderTotal(order))}</span>
+                            <span className="text-xs font-black text-orange-200">{formatCurrency(calculateOrderTotal(order))}</span>
                           </div>
                         ))}
                       </div>
@@ -4409,491 +4390,488 @@ export function Dashboard({ onLogout }: DashboardProps) {
         </ClientsPanel>
 
         {showingOrdersPanel && (
-        <main className="mt-3 grid min-h-0 flex-1 gap-3 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_560px] 2xl:grid-cols-[240px_minmax(0,1fr)_620px]">
-          <OrderFilters
-            activeFilter={activeFilter}
-            filters={filters}
-            hideFinished={hideFinished}
-            onClear={() => {
-              setActiveFilter("todos")
-              setActiveStatusFilter("todos")
-              setSearch("")
-              showNotice("Mostrando todos os pedidos.")
-            }}
-            onFilterChange={(value, label) => {
-              setActiveFilter(value as OrderFilter)
-              setActiveStatusFilter("todos")
-              showNotice(`Filtro aplicado: ${label}.`)
-            }}
-            setHideFinished={setHideFinished}
-          />
+          <main className="mt-3 grid min-h-0 flex-1 gap-3 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_560px] 2xl:grid-cols-[240px_minmax(0,1fr)_620px]">
+            <OrderFilters
+              activeFilter={activeFilter}
+              filters={filters}
+              hideFinished={hideFinished}
+              onClear={() => {
+                setActiveFilter("todos")
+                setActiveStatusFilter("todos")
+                setSearch("")
+                showNotice("Mostrando todos os pedidos.")
+              }}
+              onFilterChange={(value, label) => {
+                setActiveFilter(value as OrderFilter)
+                setActiveStatusFilter("todos")
+                showNotice(`Filtro aplicado: ${label}.`)
+              }}
+              setHideFinished={setHideFinished}
+            />
 
-          <OrderList
-            activeSelectedOrderId={activeSelectedOrderId}
-            activeWindowHours={activeOrdersWindowHours}
-            connectionStatus={connectionStatus}
-            highlightedOrderIds={orderSound.unacknowledgedOrderIds}
-            isSyncing={isSyncing}
-            onSelectOrder={selectOrder}
-	            orders={visibleOrdersWithTotals}
-            search={search}
-            setSearch={setSearch}
-          />
+            <OrderList
+              activeSelectedOrderId={activeSelectedOrderId}
+              activeWindowHours={activeOrdersWindowHours}
+              connectionStatus={connectionStatus}
+              highlightedOrderIds={orderSound.unacknowledgedOrderIds}
+              isSyncing={isSyncing}
+              onSelectOrder={selectOrder}
+              orders={visibleOrdersWithTotals}
+              search={search}
+              setSearch={setSearch}
+            />
 
-          <OrderDetails>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black">Detalhes do pedido</h2>
-                  <MapPin className="text-orange-300" size={20} />
-                </div>
+            <OrderDetails>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-black">Detalhes do pedido</h2>
+                <MapPin className="text-orange-300" size={20} />
+              </div>
 
-                {!selectedOrder && (
-                  <div className="mt-8 grid min-h-[360px] place-items-center rounded-lg border border-dashed border-white/[0.12] bg-black/[0.16] p-6 text-center">
-                    <div>
-                      <PackageCheck className="mx-auto text-zinc-500" size={42} />
-                      <h3 className="mt-4 text-lg font-black text-white">Nenhum pedido foi selecionado</h3>
-                      <p className="mt-2 text-sm leading-6 text-zinc-500">
-                        Escolha um balão de pedido ao lado para acompanhar os detalhes.
-                      </p>
-                    </div>
+              {!selectedOrder && (
+                <div className="mt-8 grid min-h-[360px] place-items-center rounded-lg border border-dashed border-white/[0.12] bg-black/[0.16] p-6 text-center">
+                  <div>
+                    <PackageCheck className="mx-auto text-zinc-500" size={42} />
+                    <h3 className="mt-4 text-lg font-black text-white">Nenhum pedido foi selecionado</h3>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500">
+                      Escolha um balão de pedido ao lado para acompanhar os detalhes.
+                    </p>
                   </div>
-                )}
+                </div>
+              )}
 
-                {selectedOrder && (
-                  <div className="mt-5 space-y-3">
-                    <div className={`overflow-hidden rounded-lg border ${
-                      selectedOrder.status === "cancelado"
-                        ? "border-red-300/30 bg-red-500/[0.08]"
-                        : selectedOrder.status === "finalizado" || selectedOrder.status === "concluido"
-                          ? "border-emerald-300/30 bg-emerald-500/[0.08]"
-                          : "border-orange-300/25 bg-orange-400/[0.08]"
+              {selectedOrder && (
+                <div className="mt-5 space-y-3">
+                  <div className={`overflow-hidden rounded-lg border ${selectedOrder.status === "cancelado"
+                      ? "border-red-300/30 bg-red-500/[0.08]"
+                      : selectedOrder.status === "finalizado" || selectedOrder.status === "concluido"
+                        ? "border-emerald-300/30 bg-emerald-500/[0.08]"
+                        : "border-orange-300/25 bg-orange-400/[0.08]"
                     }`}>
-                      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_190px]">
-                        <div className="min-w-0 p-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-lg bg-orange-400 px-3 py-1 text-xs font-black uppercase text-black">
-                              Pedido #{selectedOrder.id}
-                            </span>
-                            <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-1 text-xs font-black uppercase text-white">
-                              {statusLabels[selectedOrder.status] ?? selectedOrder.status}
-                            </span>
-                          </div>
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={saveEdit}
-                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300"
-                                >
-                                  <Save size={15} />
-                                  Salvar edição
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setIsEditing(false)
-                                    setDraft(null)
-                                    showNotice(`Edição do pedido #${selectedOrder.id} cancelada.`)
-                                  }}
-                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10"
-                                >
-                                  <X size={15} />
-                                  Cancelar
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                {selectedOrder.status === "novo" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating}
-                                    onClick={() => updateSelectedOrder(
-                                      { status: "preparando" },
-                                      `Pedido #${selectedOrder.id} aprovado e enviado para preparo.`
-                                    )}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <Check size={15} />
-                                    {selectedOrderIsUpdating ? "Salvando..." : "Aprovar e preparar"}
-                                  </button>
-                                )}
-                                {selectedOrder.status === "aprovado" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating}
-                                    onClick={() => updateSelectedOrder({ status: "preparando" }, `Pedido #${selectedOrder.id} enviado para preparo.`)}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-black text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <PackageCheck size={15} />
-                                    {selectedOrderIsUpdating ? "Salvando..." : "Iniciar preparo"}
-                                  </button>
-                                )}
-                                {selectedOrder.status === "preparando" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating || (selectedOrder.delivery === "Delivery" && !selectedOrder.courierId)}
-                                    onClick={() => {
-                                      const nextStatus = selectedOrder.delivery === "Delivery"
-                                        ? "saiu"
-                                        : isTableOrder(selectedOrder)
-                                          ? "concluido"
-                                          : "pronto"
-                                      return updateSelectedOrder(
-                                        { status: nextStatus },
-                                        selectedOrder.delivery === "Delivery"
-                                          ? `Pedido #${selectedOrder.id} saiu para entrega.`
-                                          : isTableOrder(selectedOrder)
-                                            ? `Pedido #${selectedOrder.id} finalizado.`
-                                            : `Pedido #${selectedOrder.id} marcado como pronto para retirada.`
-                                      )
-                                    }}
-                                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black text-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                                      isTableOrder(selectedOrder)
-                                        ? "bg-emerald-400 hover:bg-emerald-300"
-                                        : "bg-cyan-400 hover:bg-cyan-300"
-                                    }`}
-                                  >
-                                    {selectedOrder.delivery === "Delivery" ? <Truck size={15} /> : <CheckCircle2 size={15} />}
-                                    {selectedOrderIsUpdating
-                                      ? "Salvando..."
-                                      : selectedOrder.delivery === "Delivery" && !selectedOrder.courierId
-                                        ? "Selecione um motoboy"
-                                        : selectedOrder.delivery === "Delivery"
-                                          ? "Enviar para entrega"
-                                          : isTableOrder(selectedOrder)
-                                            ? "Concluir mesa"
-                                            : "Marcar pronto"}
-                                  </button>
-                                )}
-                                {selectedOrder.status === "pronto" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating}
-                                    onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-	                                  >
-	                                    <CheckCircle2 size={15} />
-	                                    {selectedOrderIsUpdating ? "Salvando..." : isTableOrder(selectedOrder) ? "Concluir mesa" : "Finalizar pedido"}
-	                                  </button>
-	                                )}
-                                {selectedOrder.status === "saiu" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating}
-	                                    onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <CheckCircle2 size={15} />
-                                    {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
-                                  </button>
-                                )}
-                                {selectedOrder.status === "concluido" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating}
-                                    onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <CheckCircle2 size={15} />
-                                    {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  title="Reimprimir comanda"
-                                  aria-label="Reimprimir comanda"
-                                  onClick={() => void printApprovalTickets(selectedOrder, { copies: localPanelSettings.printCopies }).then(
-                                    () => showStatusToast("Comanda enviada"),
-                                    (error) => showNotice(error instanceof Error ? error.message : "Não foi possível reimprimir a comanda.")
-                                  )}
-                                  className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-                                >
-                                  <Printer size={18} />
-                                </button>
-                                {selectedOrder.status !== "cancelado" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating}
-                                    onClick={startEdit}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <Edit3 size={15} />
-                                    Editar
-                                  </button>
-                                )}
-                                {selectedOrder.status === "cancelado" && (
-                                  <button
-                                    type="button"
-                                    disabled={selectedOrderIsUpdating}
-                                    onClick={restoreSelectedOrder}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <RefreshCw size={15} />
-                                    {selectedOrderIsUpdating ? "Restaurando..." : "Restaurar pedido"}
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          <h3 className="mt-4 break-words text-3xl font-black leading-none text-white">
-                            {selectedOrder.customer}
-                          </h3>
-	                          <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px]">
-	                            <div className={`rounded-lg border px-3 py-3 text-center ${deliveryHighlightStyles[selectedOrder.delivery]}`}>
-	                              <p className="text-[10px] font-black uppercase text-zinc-500">Tipo do pedido</p>
-	                              <strong className="mt-1 block whitespace-normal text-xl font-black uppercase leading-tight">{selectedOrder.delivery}</strong>
-	                            </div>
-	                            <div className="rounded-lg bg-black/20 px-3 py-3 text-center">
-	                              <p className="text-[10px] font-black uppercase text-zinc-500">Itens</p>
-	                              <strong className="mt-1 block text-xl font-black text-white">{selectedOrder.items.length}</strong>
-	                            </div>
-	                          </div>
-	                          {selectedOrder.status === "cancelado" && selectedOrder.cancelReason && (
-                            <p className="mt-3 rounded-lg border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-100">
-                              Motivo do cancelamento: {selectedOrder.cancelReason}
-                            </p>
-                          )}
+                    <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_190px]">
+                      <div className="min-w-0 p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-lg bg-orange-400 px-3 py-1 text-xs font-black uppercase text-black">
+                            Pedido #{selectedOrder.id}
+                          </span>
+                          <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-1 text-xs font-black uppercase text-white">
+                            {statusLabels[selectedOrder.status] ?? selectedOrder.status}
+                          </span>
                         </div>
-                        <div className="border-t border-white/10 bg-black/25 p-4 lg:border-l lg:border-t-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Total</p>
-                          <strong className="mt-2 block text-3xl font-black leading-none text-emerald-100">
-	                            {formatCurrency(calculateOrderTotal(selectedOrder))}
-                          </strong>
-	                          <p className={`mt-3 break-words text-xs font-bold ${hasPaymentMethod(selectedOrder) ? "text-zinc-400" : "text-orange-200"}`}>
-                              {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
-                            </p>
-                            {isTableOrder(selectedOrder) && renderSelectedOrderPaymentEditor()}
-	                        </div>
-                      </div>
-                    </div>
-
-                    {(selectedOrder.status === "concluido" || selectedOrder.status === "finalizado" || selectedOrder.status === "cancelado") && (
-                      <div
-                        className={`rounded-lg border p-3 ${
-                          selectedOrder.status === "cancelado"
-                            ? "border-red-300/35 bg-red-400/10 text-red-100"
-                            : "border-emerald-300/35 bg-emerald-400/10 text-emerald-100"
-                        }`}
-                      >
-                        <p className="text-xs font-black uppercase tracking-[0.14em]">
-	                          {selectedOrder.status === "cancelado" ? "Pedido cancelado" : selectedOrder.status === "finalizado" ? "Pedido finalizado" : "Pedido concluído"}
-                        </p>
-                        <p className="mt-1 text-sm leading-5 opacity-80">
-                          {selectedOrder.status === "cancelado"
-                            ? "Este pedido saiu da fila ativa. Use restaurar pedido se isso aconteceu por engano."
-                            : "Este pedido está encerrado operacionalmente."}
-                        </p>
-                      </div>
-                    )}
-
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
-                          <div className="flex items-center gap-2 text-orange-300">
-                            <User size={15} />
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em]">Cliente</p>
-                          </div>
-                          <strong className="mt-2 block break-words text-base text-white">{selectedOrder.customer}</strong>
-                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">{selectedOrder.phone}</p>
-                        </div>
-                        <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
-                          <div className="flex items-center gap-2 text-orange-300">
-                            <SelectedDeliveryIcon size={15} />
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em]">Tipo</p>
-                          </div>
-	                          <strong className="mt-2 block text-base text-white">{selectedOrder.delivery}</strong>
-	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">{selectedOrder.address}</p>
-	                          {selectedOrder.delivery === "Delivery" && (
-                              <div className="mt-2 rounded-lg border border-orange-300/20 bg-orange-400/10 p-2">
-                                <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-orange-100/70" htmlFor="selected-order-courier">
-                                  Entregador
-                                </label>
-                                <select
-                                  id="selected-order-courier"
-                                  value={selectedOrder.courierId ?? ""}
-                                  onChange={(event) => void assignCourierToOrder(selectedOrder, event.target.value)}
-                                  disabled={selectedOrderIsUpdating}
-                                  className="mt-1 h-9 w-full rounded-lg border border-white/10 bg-black/[0.28] px-2 text-xs font-black text-white outline-none focus:border-orange-300/60 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  <option value="">Selecione um motoboy</option>
-                                  {activeCouriers.map((courier) => (
-                                    <option key={courier.id} value={courier.id}>
-                                      {courier.name}
-                                    </option>
-                                  ))}
-                                </select>
-                                {activeCouriers.length === 0 && (
-                                  <p className="mt-2 text-[11px] font-bold text-orange-100/70">
-                                    Cadastre um motoboy no caixa para liberar a entrega.
-                                  </p>
-                                )}
-                                {!selectedOrder.courierId && activeCouriers.length > 0 && (
-                                  <p className="mt-2 text-[11px] font-bold text-orange-100/80">
-                                    Selecione um motoboy antes de enviar para entrega.
-                                  </p>
-                                )}
-                              </div>
-	                          )}
-	                        </div>
-                        <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
-                          <div className="flex items-center gap-2 text-orange-300">
-                            <DollarSign size={15} />
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em]">Conta</p>
-                          </div>
-	                          <strong className={`mt-2 block text-base ${hasPaymentMethod(selectedOrder) ? "text-white" : "text-orange-200"}`}>
-                              {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
-                            </strong>
-	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">
-	                            Sub {formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}
-	                          </p>
-                            {isTableOrder(selectedOrder) && renderSelectedOrderPaymentEditor()}
-	                          {selectedOrder.payment === "Dinheiro" && selectedOrder.needsChange && (
-	                            <p className="mt-2 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-100">
-	                              Troco para {formatCurrency(selectedOrder.changeFor ?? 0)}
-	                            </p>
-	                          )}
-	                        </div>
-                      </div>
-
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
-                      <div className="rounded-lg border border-white/10 bg-[#100b08] p-4">
-                        <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-                          <div>
-                            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Itens do pedido</p>
-                            <h3 className="mt-1 text-xl font-black text-white">{selectedOrder.items.length} {selectedOrder.items.length === 1 ? "item" : "itens"}</h3>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 space-y-2">
-                          {selectedOrder.items.map((item, index) => {
-                            const itemDetail = parseOrderItemDetail(item)
-
-                            return (
-                              <div key={`${index}-${item}`} className="rounded-lg border border-white/10 bg-black/25 p-3">
-                                <div className="flex items-start gap-3">
-                                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-orange-400 text-base font-black text-black">
-                                    {itemDetail.quantity}x
-                                  </span>
-                                  <div className="min-w-0 flex-1">
-                                    <strong className="block text-lg font-black leading-6 text-white">{itemDetail.name}</strong>
-                                    {itemDetail.additions.length > 0 && (
-                                      <div className="mt-2 flex flex-wrap gap-1.5">
-                                        {itemDetail.additions.map((addition) => (
-                                          <span key={addition} className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] font-bold text-zinc-300">
-                                            + {addition}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {itemDetail.note && (
-                                      <div className="mt-3 rounded-lg border-l-4 border-orange-300 bg-orange-400/10 px-3 py-2">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-200">Observação do item</p>
-                                        <p className="mt-1 text-sm font-semibold leading-5 text-white">{itemDetail.note}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-white/10 bg-[#100b08] p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-orange-300">Resumo</p>
-                        <div className="mt-3 space-y-2">
-                            <div className="flex items-center justify-between gap-2 border-b border-white/10 py-2 text-sm">
-                              <span className="font-bold text-zinc-500">Subtotal</span>
-	                              <strong className="text-white">{formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}</strong>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 border-b border-white/10 py-2 text-sm">
-                              <span className="font-bold text-zinc-500">Entrega</span>
-                              <strong className="text-white">{formatCurrency(selectedOrder.deliveryFee ?? 0)}</strong>
-                            </div>
-                            {(selectedOrder.discount || selectedOrder.discountPercent) && (
-                              <div className="flex items-center justify-between gap-2 border-b border-orange-300/20 py-2 text-sm">
-                                <span className="font-bold text-orange-200">Desconto</span>
-                                <strong className="text-white">
-                                  {selectedOrder.discountPercent
-                                    ? `${selectedOrder.discountPercent}%`
-                                    : formatCurrency(selectedOrder.discount ?? 0)}
-                                </strong>
-                              </div>
-                            )}
-                            <div className="rounded-lg bg-emerald-400/10 p-3">
-                              <p className="text-[10px] font-black uppercase text-emerald-100/70">Total final</p>
-	                              <strong className="mt-1 block text-2xl text-emerald-100">{formatCurrency(calculateOrderTotal(selectedOrder))}</strong>
-                            </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {!isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "finalizado" && (
-                      <div className="rounded-lg border border-red-300/20 bg-red-400/[0.06] p-3">
-                        {!isCanceling ? (
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-[11px] font-bold text-red-100/60">
-                              Área de cancelamento
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCancelReason(cancelReasons[0])
-                                setIsCanceling(true)
-                                showNotice(`Escolha o motivo para cancelar o pedido #${selectedOrder.id}.`)
-                              }}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-red-300/25 bg-red-400/10 px-2.5 text-[11px] font-black text-red-100 transition hover:bg-red-400/[0.18]"
-                            >
-                              <XCircle size={13} />
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <label className="block">
-                              <span className="mb-2 block text-[11px] font-black uppercase text-red-100/70">
-                                Motivo do cancelamento
-                              </span>
-                              <select
-                                value={cancelReason}
-                                onChange={(event) => setCancelReason(event.target.value)}
-                                className="h-10 w-full rounded-lg border border-red-300/25 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-red-300/70"
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={saveEdit}
+                                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300"
                               >
-                                {cancelReasons.map((reason) => (
-                                  <option key={reason} value={reason}>
-                                    {reason}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-
-                            <div className="grid grid-cols-2 gap-2">
+                                <Save size={15} />
+                                Salvar edição
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setIsCanceling(false)
-                                  showNotice(`Cancelamento do pedido #${selectedOrder.id} fechado.`)
+                                  setIsEditing(false)
+                                  setDraft(null)
+                                  showNotice(`Edição do pedido #${selectedOrder.id} cancelada.`)
                                 }}
-                                className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10"
                               >
-                                Voltar
+                                <X size={15} />
+                                Cancelar
                               </button>
+                            </>
+                          ) : (
+                            <>
+                              {selectedOrder.status === "novo" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating}
+                                  onClick={() => updateSelectedOrder(
+                                    { status: "preparando" },
+                                    `Pedido #${selectedOrder.id} aprovado e enviado para preparo.`
+                                  )}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Check size={15} />
+                                  {selectedOrderIsUpdating ? "Salvando..." : "Aprovar e preparar"}
+                                </button>
+                              )}
+                              {selectedOrder.status === "aprovado" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating}
+                                  onClick={() => updateSelectedOrder({ status: "preparando" }, `Pedido #${selectedOrder.id} enviado para preparo.`)}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-black text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <PackageCheck size={15} />
+                                  {selectedOrderIsUpdating ? "Salvando..." : "Iniciar preparo"}
+                                </button>
+                              )}
+                              {selectedOrder.status === "preparando" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating || (selectedOrder.delivery === "Delivery" && !selectedOrder.courierId)}
+                                  onClick={() => {
+                                    const nextStatus = selectedOrder.delivery === "Delivery"
+                                      ? "saiu"
+                                      : isTableOrder(selectedOrder)
+                                        ? "concluido"
+                                        : "pronto"
+                                    return updateSelectedOrder(
+                                      { status: nextStatus },
+                                      selectedOrder.delivery === "Delivery"
+                                        ? `Pedido #${selectedOrder.id} saiu para entrega.`
+                                        : isTableOrder(selectedOrder)
+                                          ? `Pedido #${selectedOrder.id} finalizado.`
+                                          : `Pedido #${selectedOrder.id} marcado como pronto para retirada.`
+                                    )
+                                  }}
+                                  className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black text-black transition disabled:cursor-not-allowed disabled:opacity-60 ${isTableOrder(selectedOrder)
+                                      ? "bg-emerald-400 hover:bg-emerald-300"
+                                      : "bg-cyan-400 hover:bg-cyan-300"
+                                    }`}
+                                >
+                                  {selectedOrder.delivery === "Delivery" ? <Truck size={15} /> : <CheckCircle2 size={15} />}
+                                  {selectedOrderIsUpdating
+                                    ? "Salvando..."
+                                    : selectedOrder.delivery === "Delivery" && !selectedOrder.courierId
+                                      ? "Selecione um motoboy"
+                                      : selectedOrder.delivery === "Delivery"
+                                        ? "Enviar para entrega"
+                                        : isTableOrder(selectedOrder)
+                                          ? "Concluir mesa"
+                                          : "Marcar pronto"}
+                                </button>
+                              )}
+                              {selectedOrder.status === "pronto" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating}
+                                  onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <CheckCircle2 size={15} />
+                                  {selectedOrderIsUpdating ? "Salvando..." : isTableOrder(selectedOrder) ? "Concluir mesa" : "Finalizar pedido"}
+                                </button>
+                              )}
+                              {selectedOrder.status === "saiu" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating}
+                                  onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <CheckCircle2 size={15} />
+                                  {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
+                                </button>
+                              )}
+                              {selectedOrder.status === "concluido" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating}
+                                  onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <CheckCircle2 size={15} />
+                                  {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={confirmCancel}
-                                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-300/35 bg-red-400/15 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.22]"
+                                title="Reimprimir comanda"
+                                aria-label="Reimprimir comanda"
+                                onClick={() => void printApprovalTickets(selectedOrder, { copies: localPanelSettings.printCopies }).then(
+                                  () => showStatusToast("Comanda enviada"),
+                                  (error) => showNotice(error instanceof Error ? error.message : "Não foi possível reimprimir a comanda.")
+                                )}
+                                className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
                               >
-                                <XCircle size={14} />
-                                Confirmar
+                                <Printer size={18} />
                               </button>
-                            </div>
+                              {selectedOrder.status !== "cancelado" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating}
+                                  onClick={startEdit}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Edit3 size={15} />
+                                  Editar
+                                </button>
+                              )}
+                              {selectedOrder.status === "cancelado" && (
+                                <button
+                                  type="button"
+                                  disabled={selectedOrderIsUpdating}
+                                  onClick={restoreSelectedOrder}
+                                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <RefreshCw size={15} />
+                                  {selectedOrderIsUpdating ? "Restaurando..." : "Restaurar pedido"}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        <h3 className="mt-4 break-words text-3xl font-black leading-none text-white">
+                          {selectedOrder.customer}
+                        </h3>
+                        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px]">
+                          <div className={`rounded-lg border px-3 py-3 text-center ${deliveryHighlightStyles[selectedOrder.delivery]}`}>
+                            <p className="text-[10px] font-black uppercase text-zinc-500">Tipo do pedido</p>
+                            <strong className="mt-1 block whitespace-normal text-xl font-black uppercase leading-tight">{selectedOrder.delivery}</strong>
                           </div>
+                          <div className="rounded-lg bg-black/20 px-3 py-3 text-center">
+                            <p className="text-[10px] font-black uppercase text-zinc-500">Itens</p>
+                            <strong className="mt-1 block text-xl font-black text-white">{selectedOrder.items.length}</strong>
+                          </div>
+                        </div>
+                        {selectedOrder.status === "cancelado" && selectedOrder.cancelReason && (
+                          <p className="mt-3 rounded-lg border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-100">
+                            Motivo do cancelamento: {selectedOrder.cancelReason}
+                          </p>
                         )}
                       </div>
-                    )}
+                      <div className="border-t border-white/10 bg-black/25 p-4 lg:border-l lg:border-t-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Total</p>
+                        <strong className="mt-2 block text-3xl font-black leading-none text-emerald-100">
+                          {formatCurrency(calculateOrderTotal(selectedOrder))}
+                        </strong>
+                        <p className={`mt-3 break-words text-xs font-bold ${hasPaymentMethod(selectedOrder) ? "text-zinc-400" : "text-orange-200"}`}>
+                          {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
+                        </p>
+                        {isTableOrder(selectedOrder) && renderSelectedOrderPaymentEditor()}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </OrderDetails>
-        </main>
+
+                  {(selectedOrder.status === "concluido" || selectedOrder.status === "finalizado" || selectedOrder.status === "cancelado") && (
+                    <div
+                      className={`rounded-lg border p-3 ${selectedOrder.status === "cancelado"
+                          ? "border-red-300/35 bg-red-400/10 text-red-100"
+                          : "border-emerald-300/35 bg-emerald-400/10 text-emerald-100"
+                        }`}
+                    >
+                      <p className="text-xs font-black uppercase tracking-[0.14em]">
+                        {selectedOrder.status === "cancelado" ? "Pedido cancelado" : selectedOrder.status === "finalizado" ? "Pedido finalizado" : "Pedido concluído"}
+                      </p>
+                      <p className="mt-1 text-sm leading-5 opacity-80">
+                        {selectedOrder.status === "cancelado"
+                          ? "Este pedido saiu da fila ativa. Use restaurar pedido se isso aconteceu por engano."
+                          : "Este pedido está encerrado operacionalmente."}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                      <div className="flex items-center gap-2 text-orange-300">
+                        <User size={15} />
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em]">Cliente</p>
+                      </div>
+                      <strong className="mt-2 block break-words text-base text-white">{selectedOrder.customer}</strong>
+                      <p className="mt-1 break-words text-sm font-bold text-zinc-400">{selectedOrder.phone}</p>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                      <div className="flex items-center gap-2 text-orange-300">
+                        <SelectedDeliveryIcon size={15} />
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em]">Tipo</p>
+                      </div>
+                      <strong className="mt-2 block text-base text-white">{selectedOrder.delivery}</strong>
+                      <p className="mt-1 break-words text-sm font-bold text-zinc-400">{selectedOrder.address}</p>
+                      {selectedOrder.delivery === "Delivery" && (
+                        <div className="mt-2 rounded-lg border border-orange-300/20 bg-orange-400/10 p-2">
+                          <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-orange-100/70" htmlFor="selected-order-courier">
+                            Entregador
+                          </label>
+                          <select
+                            id="selected-order-courier"
+                            value={selectedOrder.courierId ?? ""}
+                            onChange={(event) => void assignCourierToOrder(selectedOrder, event.target.value)}
+                            disabled={selectedOrderIsUpdating}
+                            className="mt-1 h-9 w-full rounded-lg border border-white/10 bg-black/[0.28] px-2 text-xs font-black text-white outline-none focus:border-orange-300/60 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <option value="">Selecione um motoboy</option>
+                            {activeCouriers.map((courier) => (
+                              <option key={courier.id} value={courier.id}>
+                                {courier.name}
+                              </option>
+                            ))}
+                          </select>
+                          {activeCouriers.length === 0 && (
+                            <p className="mt-2 text-[11px] font-bold text-orange-100/70">
+                              Cadastre um motoboy no caixa para liberar a entrega.
+                            </p>
+                          )}
+                          {!selectedOrder.courierId && activeCouriers.length > 0 && (
+                            <p className="mt-2 text-[11px] font-bold text-orange-100/80">
+                              Selecione um motoboy antes de enviar para entrega.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                      <div className="flex items-center gap-2 text-orange-300">
+                        <DollarSign size={15} />
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em]">Conta</p>
+                      </div>
+                      <strong className={`mt-2 block text-base ${hasPaymentMethod(selectedOrder) ? "text-white" : "text-orange-200"}`}>
+                        {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
+                      </strong>
+                      <p className="mt-1 break-words text-sm font-bold text-zinc-400">
+                        Sub {formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}
+                      </p>
+                      {isTableOrder(selectedOrder) && renderSelectedOrderPaymentEditor()}
+                      {selectedOrder.payment === "Dinheiro" && selectedOrder.needsChange && (
+                        <p className="mt-2 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-100">
+                          Troco para {formatCurrency(selectedOrder.changeFor ?? 0)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
+                    <div className="rounded-lg border border-white/10 bg-[#100b08] p-4">
+                      <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Itens do pedido</p>
+                          <h3 className="mt-1 text-xl font-black text-white">{selectedOrder.items.length} {selectedOrder.items.length === 1 ? "item" : "itens"}</h3>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        {selectedOrder.items.map((item, index) => {
+                          const itemDetail = parseOrderItemDetail(item)
+
+                          return (
+                            <div key={`${index}-${item}`} className="rounded-lg border border-white/10 bg-black/25 p-3">
+                              <div className="flex items-start gap-3">
+                                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-orange-400 text-base font-black text-black">
+                                  {itemDetail.quantity}x
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <strong className="block text-lg font-black leading-6 text-white">{itemDetail.name}</strong>
+                                  {itemDetail.additions.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {itemDetail.additions.map((addition) => (
+                                        <span key={addition} className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] font-bold text-zinc-300">
+                                          + {addition}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {itemDetail.note && (
+                                    <div className="mt-3 rounded-lg border-l-4 border-orange-300 bg-orange-400/10 px-3 py-2">
+                                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-200">Observação do item</p>
+                                      <p className="mt-1 text-sm font-semibold leading-5 text-white">{itemDetail.note}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/10 bg-[#100b08] p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-orange-300">Resumo</p>
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2 border-b border-white/10 py-2 text-sm">
+                          <span className="font-bold text-zinc-500">Subtotal</span>
+                          <strong className="text-white">{formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}</strong>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 border-b border-white/10 py-2 text-sm">
+                          <span className="font-bold text-zinc-500">Entrega</span>
+                          <strong className="text-white">{formatCurrency(selectedOrder.deliveryFee ?? 0)}</strong>
+                        </div>
+                        {(selectedOrder.discount || selectedOrder.discountPercent) && (
+                          <div className="flex items-center justify-between gap-2 border-b border-orange-300/20 py-2 text-sm">
+                            <span className="font-bold text-orange-200">Desconto</span>
+                            <strong className="text-white">
+                              {selectedOrder.discountPercent
+                                ? `${selectedOrder.discountPercent}%`
+                                : formatCurrency(selectedOrder.discount ?? 0)}
+                            </strong>
+                          </div>
+                        )}
+                        <div className="rounded-lg bg-emerald-400/10 p-3">
+                          <p className="text-[10px] font-black uppercase text-emerald-100/70">Total final</p>
+                          <strong className="mt-1 block text-2xl text-emerald-100">{formatCurrency(calculateOrderTotal(selectedOrder))}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "finalizado" && (
+                    <div className="rounded-lg border border-red-300/20 bg-red-400/[0.06] p-3">
+                      {!isCanceling ? (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[11px] font-bold text-red-100/60">
+                            Área de cancelamento
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCancelReason(cancelReasons[0])
+                              setIsCanceling(true)
+                              showNotice(`Escolha o motivo para cancelar o pedido #${selectedOrder.id}.`)
+                            }}
+                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-red-300/25 bg-red-400/10 px-2.5 text-[11px] font-black text-red-100 transition hover:bg-red-400/[0.18]"
+                          >
+                            <XCircle size={13} />
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <label className="block">
+                            <span className="mb-2 block text-[11px] font-black uppercase text-red-100/70">
+                              Motivo do cancelamento
+                            </span>
+                            <select
+                              value={cancelReason}
+                              onChange={(event) => setCancelReason(event.target.value)}
+                              className="h-10 w-full rounded-lg border border-red-300/25 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-red-300/70"
+                            >
+                              {cancelReasons.map((reason) => (
+                                <option key={reason} value={reason}>
+                                  {reason}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsCanceling(false)
+                                showNotice(`Cancelamento do pedido #${selectedOrder.id} fechado.`)
+                              }}
+                              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
+                            >
+                              Voltar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={confirmCancel}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-300/35 bg-red-400/15 px-3 text-xs font-black text-red-100 transition hover:bg-red-400/[0.22]"
+                            >
+                              <XCircle size={14} />
+                              Confirmar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </OrderDetails>
+          </main>
         )}
       </div>
     </MainLayout>
