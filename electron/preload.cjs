@@ -9,10 +9,15 @@ const printer = {
 };
 
 contextBridge.exposeInMainWorld("pitsDog", {
+  isDesktop: true,
   printer
 });
 
 contextBridge.exposeInMainWorld("pitsDogPrinter", {
+  checkConnection: printer.checkConnection,
+  getConfig: printer.getConfig,
   printHtml: (html) => ipcRenderer.invoke("pitsdog:print-html", html),
-  printReceiptText: printer.printReceiptText
+  printReceiptText: printer.printReceiptText,
+  saveConfig: printer.saveConfig,
+  testPrint: printer.testPrint
 });

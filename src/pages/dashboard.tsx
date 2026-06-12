@@ -307,6 +307,10 @@ function readLocalPrinterConfig(): PrinterConfig {
   }
 }
 
+function getDesktopPrinterApi() {
+  return window.pitsDog?.printer ?? window.pitsDogPrinter
+}
+
 const cashTabLabels: Record<CashTab, string> = {
   adicionais: "Adicionais",
   cachorros: "Cachorros quentes",
@@ -877,13 +881,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }, [localPanelSettings])
 
   useEffect(() => {
-    if (!window.pitsDog?.printer?.getConfig) {
+    const printerApi = getDesktopPrinterApi()
+
+    if (!printerApi?.getConfig) {
       setPrinterFeedback("Você pode deixar o IP salvo aqui. Para conectar e imprimir, abra pelo app desktop.")
       return
     }
 
     setPrinterLoading(true)
-    window.pitsDog.printer.getConfig()
+    printerApi.getConfig()
       .then((result) => {
         if (!result.ok || !result.data) {
           setPrinterFeedback(result.error || "Não foi possível carregar a impressora.")
@@ -1362,12 +1368,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   async function savePrinterSettings() {
+    const printerApi = getDesktopPrinterApi()
     const nextConfig = {
       ...printerConfig,
       autoPrintOnAccept: localPanelSettings.autoPrint,
     }
 
-    if (!window.pitsDog?.printer?.saveConfig) {
+    if (!printerApi?.saveConfig) {
       window.localStorage.setItem(localPrinterConfigStorageKey, JSON.stringify(nextConfig))
       setPrinterConfig(nextConfig)
       setPrinterFeedback("Configuração salva neste navegador. Para testar ou imprimir, abra no app desktop.")
@@ -1378,7 +1385,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setPrinterFeedback("")
 
     try {
-      const result = await window.pitsDog.printer.saveConfig(nextConfig)
+      const result = await printerApi.saveConfig(nextConfig)
 
       if (!result.ok || !result.data) {
         setPrinterFeedback(result.error || "Não foi possível salvar as configurações.")
@@ -1397,7 +1404,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   async function checkPrinterConnection() {
-    if (!window.pitsDog?.printer?.checkConnection) {
+    const printerApi = getDesktopPrinterApi()
+
+    if (!printerApi?.checkConnection) {
       setPrinterFeedback("Conexão direta só funciona no app desktop. No Chrome, deixe o IP salvo e abra o sistema pelo Electron para testar.")
       return
     }
@@ -1406,11 +1415,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setPrinterFeedback("")
 
     try {
-      await window.pitsDog.printer.saveConfig({
+      await printerApi.saveConfig?.({
         ...printerConfig,
         autoPrintOnAccept: localPanelSettings.autoPrint,
       })
-      const result = await window.pitsDog.printer.checkConnection()
+      const result = await printerApi.checkConnection()
 
       setPrinterFeedback(result.ok ? result.message || "Conexão com a impressora confirmada." : result.error || "Não foi possível conectar na impressora.")
     } finally {
@@ -1419,7 +1428,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   async function testPrinter() {
-    if (!window.pitsDog?.printer?.testPrint) {
+    const printerApi = getDesktopPrinterApi()
+
+    if (!printerApi?.testPrint) {
       setPrinterFeedback("Teste de impressão só funciona no app desktop.")
       return
     }
@@ -1428,11 +1439,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setPrinterFeedback("")
 
     try {
-      await window.pitsDog.printer.saveConfig({
+      await printerApi.saveConfig?.({
         ...printerConfig,
         autoPrintOnAccept: localPanelSettings.autoPrint,
       })
-      const result = await window.pitsDog.printer.testPrint()
+      const result = await printerApi.testPrint()
 
       setPrinterFeedback(result.ok ? result.message || "Impressão de teste enviada." : result.error || "Não foi possível conectar na impressora.")
     } finally {
@@ -1537,7 +1548,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           void printApprovalTickets({ ...previousOrder, ...changes }, { copies: localPanelSettings.printCopies }).catch((error) => {
             console.warn("Não foi possível imprimir a comanda automaticamente.", error)
             showStatusToast(
-              window.pitsDog?.printer
+              getDesktopPrinterApi()
                 ? "Pedido aprovado. Configure a impressora para imprimir automaticamente."
                 : "Pedido aprovado. Impressão automática só funciona no app desktop.",
               9000
@@ -2548,7 +2559,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <Printer size={16} className="text-orange-300" />
                   Impressora térmica
                 </div>
-                {!window.pitsDog?.printer && (
+                {!getDesktopPrinterApi() && (
                   <div className="mt-3 rounded-lg border border-orange-300/20 bg-orange-400/[0.08] p-3 text-xs font-bold leading-5 text-orange-50/80">
                     Você pode salvar IP e porta aqui. Conectar e imprimir só funciona no app desktop.
                   </div>

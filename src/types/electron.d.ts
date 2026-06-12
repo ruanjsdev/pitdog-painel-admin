@@ -17,6 +17,7 @@ type PrinterConfig = {
 declare global {
   interface Window {
     pitsDog?: {
+      isDesktop?: boolean
       printer?: {
         checkConnection: () => Promise<PitsDogIpcResult<{ connected: boolean }>>
         getConfig: () => Promise<PitsDogIpcResult<PrinterConfig>>
@@ -26,8 +27,12 @@ declare global {
       }
     }
     pitsDogPrinter?: {
+      checkConnection?: () => Promise<PitsDogIpcResult<{ connected: boolean }>>
+      getConfig?: () => Promise<PitsDogIpcResult<PrinterConfig>>
       printHtml: (html: string) => Promise<PitsDogIpcResult>
       printReceiptText: (text: string) => Promise<PitsDogIpcResult>
+      saveConfig?: (config: PrinterConfig) => Promise<PitsDogIpcResult<PrinterConfig>>
+      testPrint?: () => Promise<PitsDogIpcResult>
     }
   }
 }
