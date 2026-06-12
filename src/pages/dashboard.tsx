@@ -149,6 +149,7 @@ const hiddenOrdersStorageKey = "pitsdog:admin:hidden-orders:v1"
 const soundModeStorageKey = "pitsdog:admin:sound-mode:v1"
 const pixSettingsStorageKey = "pitsdog:admin:pix-settings:v1"
 const localPanelSettingsStorageKey = "pitsdog:admin:local-panel-settings:v1"
+const localPrinterConfigStorageKey = "pitsdog:admin:printer-config:v1"
 const menuImageMaxSizeMb = 5
 const menuImageMaxSizeBytes = menuImageMaxSizeMb * 1024 * 1024
 const menuImageMimeTypes = new Set(["image/jpeg", "image/png"])
@@ -292,6 +293,17 @@ function readLocalPanelSettings(): LocalPanelSettings {
       defaultDeliveryFee,
       printCopies: 1,
     }
+  }
+}
+
+function readLocalPrinterConfig(): PrinterConfig {
+  try {
+    return {
+      ...defaultPrinterConfig,
+      ...JSON.parse(window.localStorage.getItem(localPrinterConfigStorageKey) ?? "{}"),
+    }
+  } catch {
+    return defaultPrinterConfig
   }
 }
 
@@ -689,7 +701,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [editingCourierId, setEditingCourierId] = useState<string | null>(null)
   const [courierFeedback, setCourierFeedback] = useState("")
   const [courierSaving, setCourierSaving] = useState(false)
-  const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(defaultPrinterConfig)
+  const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(readLocalPrinterConfig)
   const [printerFeedback, setPrinterFeedback] = useState("")
   const [printerLoading, setPrinterLoading] = useState(false)
   const [cleanupStep, setCleanupStep] = useState(0)
@@ -866,7 +878,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   useEffect(() => {
     if (!window.pitsDog?.printer?.getConfig) {
-      setPrinterFeedback("Impressão direta disponível apenas no app desktop.")
+      setPrinterFeedback("Você pode deixar o IP salvo aqui. Para conectar e imprimir, abra pelo app desktop.")
       return
     }
 
@@ -1350,18 +1362,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   async function savePrinterSettings() {
+    const nextConfig = {
+      ...printerConfig,
+      autoPrintOnAccept: localPanelSettings.autoPrint,
+    }
+
     if (!window.pitsDog?.printer?.saveConfig) {
-      setPrinterFeedback("Essa função só está disponível no app desktop.")
+      window.localStorage.setItem(localPrinterConfigStorageKey, JSON.stringify(nextConfig))
+      setPrinterConfig(nextConfig)
+      setPrinterFeedback("Configuração salva neste navegador. Para testar ou imprimir, abra no app desktop.")
       return
     }
 
     setPrinterLoading(true)
     setPrinterFeedback("")
-
-    const nextConfig = {
-      ...printerConfig,
-      autoPrintOnAccept: localPanelSettings.autoPrint,
-    }
 
     try {
       const result = await window.pitsDog.printer.saveConfig(nextConfig)
@@ -1384,7 +1398,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   async function checkPrinterConnection() {
     if (!window.pitsDog?.printer?.checkConnection) {
-      setPrinterFeedback("Essa função só está disponível no app desktop.")
+      setPrinterFeedback("Conexão direta só funciona no app desktop. No Chrome, deixe o IP salvo e abra o sistema pelo Electron para testar.")
       return
     }
 
@@ -1406,7 +1420,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   async function testPrinter() {
     if (!window.pitsDog?.printer?.testPrint) {
-      setPrinterFeedback("Essa função só está disponível no app desktop.")
+      setPrinterFeedback("Teste de impressão só funciona no app desktop.")
       return
     }
 
@@ -1522,7 +1536,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
         if (changes.status === "preparando" && localPanelSettings.autoPrint) {
           void printApprovalTickets({ ...previousOrder, ...changes }, { copies: localPanelSettings.printCopies }).catch((error) => {
             console.warn("Não foi possível imprimir a comanda automaticamente.", error)
-            showNotice(error instanceof Error ? error.message : "Não foi possível imprimir a comanda automaticamente.")
+            showStatusToast(
+              window.pitsDog?.printer
+                ? "Pedido aprovado. Configure a impressora para imprimir automaticamente."
+                : "Pedido aprovado. Impressão automática só funciona no app desktop.",
+              9000
+            )
           })
         }
 
@@ -2531,7 +2550,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </div>
                 {!window.pitsDog?.printer && (
                   <div className="mt-3 rounded-lg border border-orange-300/20 bg-orange-400/[0.08] p-3 text-xs font-bold leading-5 text-orange-50/80">
-                    Impressão direta disponível apenas no app desktop.
+                    Você pode salvar IP e porta aqui. Conectar e imprimir só funciona no app desktop.
                   </div>
                 )}
                 {printerFeedback && (
@@ -2543,7 +2562,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <label className="block">
                     <span className="mb-2 block text-xs font-black uppercase text-zinc-500">IP/Host da impressora</span>
                     <input
-                      disabled={!window.pitsDog?.printer || printerLoading}
+                      disabled={printerLoading}
                       value={printerConfig.host}
                       onChange={(event) => setPrinterConfig({ ...printerConfig, host: event.target.value })}
                       placeholder="192.168.3.17"
@@ -2553,7 +2572,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <label className="block">
                     <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Porta</span>
                     <input
-                      disabled={!window.pitsDog?.printer || printerLoading}
+                      disabled={printerLoading}
                       value={printerConfig.port}
                       onChange={(event) => setPrinterConfig({ ...printerConfig, port: Number(event.target.value) || 9100 })}
                       placeholder="9100"
@@ -2564,7 +2583,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
                     Ativar impressão direta
                     <input
-                      disabled={!window.pitsDog?.printer || printerLoading}
+                      disabled={printerLoading}
                       type="checkbox"
                       checked={printerConfig.enabled}
                       onChange={(event) => setPrinterConfig({ ...printerConfig, enabled: event.target.checked })}
@@ -2574,7 +2593,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
                     Imprimir automaticamente ao aceitar
                     <input
-                      disabled={!window.pitsDog?.printer || printerLoading}
+                      disabled={printerLoading}
                       type="checkbox"
                       checked={localPanelSettings.autoPrint}
                       onChange={(event) => {
@@ -2585,14 +2604,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     />
                   </label>
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <button type="button" onClick={() => void savePrinterSettings()} disabled={!window.pitsDog?.printer || printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50">
+                    <button type="button" onClick={() => void savePrinterSettings()} disabled={printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50">
                       {printerLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                       Salvar
                     </button>
-                    <button type="button" onClick={() => void checkPrinterConnection()} disabled={!window.pitsDog?.printer || printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+                    <button type="button" onClick={() => void checkPrinterConnection()} disabled={printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                       Testar conexão
                     </button>
-                    <button type="button" onClick={() => void testPrinter()} disabled={!window.pitsDog?.printer || printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50">
+                    <button type="button" onClick={() => void testPrinter()} disabled={printerLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50">
                       Testar impressão
                     </button>
                   </div>
