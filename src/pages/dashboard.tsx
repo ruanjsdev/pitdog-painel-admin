@@ -604,6 +604,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [statusToast, setStatusToast] = useState<StatusToast | null>(null)
   const [actionOverlayLabel, setActionOverlayLabel] = useState("")
   const [isCanceling, setIsCanceling] = useState(false)
+  const [paymentModalDraft, setPaymentModalDraft] = useState<{
+    changeFor: number
+    needsChange: boolean
+    payment: string
+  } | null>(null)
   const [cancelReason, setCancelReason] = useState(cancelReasons[0])
   const [categoryDraft, setCategoryDraft] = useState<MenuCategoryDraft>(emptyCategoryDraft)
   const [categoryFeedback, setCategoryFeedback] = useState("")
@@ -1572,7 +1577,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     const isCash = payment === "Dinheiro"
     const needsChange = isCash ? options?.needsChange ?? selectedOrder.needsChange ?? false : false
 
-    await updateSelectedOrder({
+    return updateSelectedOrder({
       changeFor: isCash && needsChange ? options?.changeFor ?? selectedOrder.changeFor : undefined,
       needsChange,
       payment,
@@ -1581,79 +1586,49 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }, `Pagamento do pedido #${selectedOrder.id} definido como ${payment}.`)
   }
 
+  function openSelectedOrderPaymentModal() {
+    if (!selectedOrder) return
+
+    setPaymentModalDraft({
+      changeFor: selectedOrder.changeFor ?? selectedOrder.paymentChangeFor ?? calculateOrderTotal(selectedOrder),
+      needsChange: selectedOrder.needsChange ?? false,
+      payment: hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "",
+    })
+  }
+
+  async function confirmSelectedOrderPayment() {
+    if (!selectedOrder || !paymentModalDraft) return
+
+    if (!paymentModalDraft.payment) {
+      showNotice("Selecione uma forma de pagamento.")
+      return
+    }
+
+    if (paymentModalDraft.payment === "Dinheiro" && paymentModalDraft.needsChange && paymentModalDraft.changeFor <= 0) {
+      showNotice("Informe o valor para troco.")
+      return
+    }
+
+    const updated = await updateSelectedOrderPayment(paymentModalDraft.payment, {
+      changeFor: paymentModalDraft.changeFor,
+      needsChange: paymentModalDraft.needsChange,
+    })
+
+    if (updated) setPaymentModalDraft(null)
+  }
+
   function renderSelectedOrderPaymentEditor() {
     if (!selectedOrder || isEditing || selectedOrder.status === "cancelado" || selectedOrder.status === "finalizado") return null
 
-    const selectedPayment = hasPaymentMethod(selectedOrder) ? selectedOrder.payment : ""
-    const changeValue = selectedOrder.changeFor ?? selectedOrder.paymentChangeFor ?? calculateOrderTotal(selectedOrder)
-
     return (
-      <div className="mt-3 space-y-2 rounded-lg border border-orange-300/15 bg-orange-400/[0.06] p-2">
-        <div className="grid grid-cols-2 gap-2">
-          {paymentOptions.map((payment) => (
-            <button
-              key={payment}
-              type="button"
-              disabled={selectedOrderIsUpdating}
-              onClick={() => updateSelectedOrderPayment(payment)}
-              className={`min-h-11 rounded-lg border px-3 text-left text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                selectedPayment === payment
-                  ? "border-orange-300 bg-orange-400 text-black shadow-[0_12px_30px_rgba(251,146,60,0.22)]"
-                  : "border-white/10 bg-black/[0.34] text-white hover:border-orange-300/50 hover:bg-orange-400/10"
-              }`}
-            >
-              {payment}
-            </button>
-          ))}
-        </div>
-
-        {selectedPayment === "Dinheiro" && (
-          <div className="space-y-2 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-2">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={selectedOrderIsUpdating}
-                onClick={() => updateSelectedOrderPayment("Dinheiro", { needsChange: false })}
-                className={`min-h-10 rounded-lg border px-3 text-xs font-black transition ${
-                  !selectedOrder.needsChange
-                    ? "border-emerald-300 bg-emerald-300 text-black"
-                    : "border-white/10 bg-black/[0.28] text-white"
-                }`}
-              >
-                Sem troco
-              </button>
-              <button
-                type="button"
-                disabled={selectedOrderIsUpdating}
-                onClick={() => updateSelectedOrderPayment("Dinheiro", { changeFor: changeValue, needsChange: true })}
-                className={`min-h-10 rounded-lg border px-3 text-xs font-black transition ${
-                  selectedOrder.needsChange
-                    ? "border-emerald-300 bg-emerald-300 text-black"
-                    : "border-white/10 bg-black/[0.28] text-white"
-                }`}
-              >
-                Precisa troco
-              </button>
-            </div>
-
-            {selectedOrder.needsChange && (
-              <label className="block">
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100/70">Troco para</span>
-                <input
-                  type="number"
-                  min={calculateOrderTotal(selectedOrder)}
-                  defaultValue={numberInputValue(changeValue)}
-                  onBlur={(event) => updateSelectedOrderPayment("Dinheiro", {
-                    changeFor: Number(event.target.value) || calculateOrderTotal(selectedOrder),
-                    needsChange: true,
-                  })}
-                  className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.34] px-3 text-sm font-black text-white outline-none focus:border-emerald-300/70"
-                />
-              </label>
-            )}
-          </div>
-        )}
-      </div>
+      <button
+        type="button"
+        disabled={selectedOrderIsUpdating}
+        onClick={openSelectedOrderPaymentModal}
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-orange-300/25 bg-orange-400/12 px-3 text-center text-xs font-black uppercase tracking-[0.08em] text-orange-100 transition hover:border-orange-300/60 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        Selecionar forma de pagamento
+      </button>
     )
   }
 
@@ -2025,7 +2000,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   useEffect(() => {
-    const hasSecondaryScreen = isEditing || isCanceling || Boolean(errorDialog) || (activePanel !== "pedidos" && activePanel !== "dashboard")
+    const hasSecondaryScreen = Boolean(paymentModalDraft) || isEditing || isCanceling || Boolean(errorDialog) || (activePanel !== "pedidos" && activePanel !== "dashboard")
 
     if (!hasSecondaryScreen) return
 
@@ -2034,7 +2009,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
     window.history.pushState(guardState, "", window.location.href)
 
     function handlePopState() {
-      if (errorDialog) {
+      if (paymentModalDraft) {
+        setPaymentModalDraft(null)
+      } else if (errorDialog) {
         setErrorDialog(null)
       } else if (isEditing) {
         setIsEditing(false)
@@ -2060,7 +2037,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     return () => {
       window.removeEventListener("popstate", handlePopState)
     }
-  }, [activePanel, errorDialog, isCanceling, isEditing, selectedOrder])
+  }, [activePanel, errorDialog, isCanceling, isEditing, paymentModalDraft, selectedOrder])
 
   useEffect(() => {
     if (!menuPanelOpen && !cashPanelOpen) return
@@ -2091,6 +2068,124 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <strong className="text-base font-black text-white">{actionOverlayLabel}</strong>
               <p className="text-sm font-bold text-zinc-400">Aguarde a confirmação antes de clicar de novo.</p>
             </div>
+          </div>
+        )}
+
+        {paymentModalDraft && selectedOrder && (
+          <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+            <section
+              className="w-full max-w-md overflow-hidden rounded-lg border border-orange-300/25 bg-[#120b08] shadow-[0_28px_90px_rgba(0,0,0,0.65)]"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="payment-modal-title"
+            >
+              <header className="flex items-start justify-between gap-3 border-b border-white/10 bg-orange-400/[0.08] px-5 py-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Pagamento</p>
+                  <h2 id="payment-modal-title" className="mt-1 text-xl font-black text-white">
+                    Pedido #{selectedOrder.id}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalDraft(null)}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                  aria-label="Fechar pagamento"
+                >
+                  <X size={18} />
+                </button>
+              </header>
+
+              <div className="space-y-4 p-5">
+                <div>
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.12em] text-zinc-500">Forma de pagamento</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {paymentOptions.map((payment) => (
+                      <button
+                        key={payment}
+                        type="button"
+                        onClick={() => setPaymentModalDraft((current) => current ? {
+                          ...current,
+                          needsChange: payment === "Dinheiro" ? current.needsChange : false,
+                          payment,
+                        } : current)}
+                        className={`min-h-14 rounded-lg border px-3 text-left text-sm font-black transition ${
+                          paymentModalDraft.payment === payment
+                            ? "border-orange-300 bg-orange-400 text-black shadow-[0_14px_36px_rgba(251,146,60,0.24)]"
+                            : "border-white/10 bg-black/[0.32] text-white hover:border-orange-300/45 hover:bg-orange-400/10"
+                        }`}
+                      >
+                        {payment}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {paymentModalDraft.payment === "Dinheiro" && (
+                  <div className="space-y-3 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-100/75">Precisa de troco?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentModalDraft((current) => current ? { ...current, needsChange: false } : current)}
+                        className={`min-h-12 rounded-lg border px-3 text-sm font-black transition ${
+                          !paymentModalDraft.needsChange
+                            ? "border-emerald-300 bg-emerald-300 text-black"
+                            : "border-white/10 bg-black/[0.28] text-white hover:bg-white/10"
+                        }`}
+                      >
+                        Não
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentModalDraft((current) => current ? { ...current, needsChange: true } : current)}
+                        className={`min-h-12 rounded-lg border px-3 text-sm font-black transition ${
+                          paymentModalDraft.needsChange
+                            ? "border-emerald-300 bg-emerald-300 text-black"
+                            : "border-white/10 bg-black/[0.28] text-white hover:bg-white/10"
+                        }`}
+                      >
+                        Sim
+                      </button>
+                    </div>
+
+                    {paymentModalDraft.needsChange && (
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-emerald-100/70">Troco para quanto?</span>
+                        <input
+                          type="number"
+                          min={calculateOrderTotal(selectedOrder)}
+                          value={numberInputValue(paymentModalDraft.changeFor)}
+                          onChange={(event) => setPaymentModalDraft((current) => current ? {
+                            ...current,
+                            changeFor: Number(event.target.value),
+                          } : current)}
+                          className="h-12 w-full rounded-lg border border-white/10 bg-black/[0.34] px-3 text-base font-black text-white outline-none focus:border-emerald-300/70"
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalDraft(null)}
+                    className="min-h-12 rounded-lg border border-white/10 bg-white/5 px-4 text-sm font-black text-white transition hover:bg-white/10"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedOrderIsUpdating}
+                    onClick={() => void confirmSelectedOrderPayment()}
+                    className="min-h-12 rounded-lg bg-orange-400 px-4 text-sm font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {selectedOrderIsUpdating ? "Salvando..." : "Confirmar"}
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         )}
 
