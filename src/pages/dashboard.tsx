@@ -1567,6 +1567,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
+  async function updateSelectedOrderPayment(payment: string) {
+    if (!selectedOrder || !payment) return
+
+    await updateSelectedOrder({
+      changeFor: payment === "Dinheiro" && selectedOrder.needsChange ? selectedOrder.changeFor : undefined,
+      needsChange: payment === "Dinheiro" ? selectedOrder.needsChange : false,
+      payment,
+      paymentConfirmed: true,
+      paymentStatus: "CONFIRMADO",
+    }, `Pagamento do pedido #${selectedOrder.id} definido como ${payment}.`)
+  }
+
   function addDraftProduct() {
     if (!draft || !draft.productToAddId) return
 
@@ -4164,7 +4176,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                       const nextStatus = selectedOrder.delivery === "Delivery"
                                         ? "saiu"
                                         : selectedOrder.delivery === "Mesa"
-                                          ? "concluido"
+                                          ? "pronto"
                                           : "pronto"
 
                                       return updateSelectedOrder(
@@ -4172,7 +4184,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         selectedOrder.delivery === "Delivery"
                                           ? `Pedido #${selectedOrder.id} saiu para entrega.`
                                           : selectedOrder.delivery === "Mesa"
-                                            ? `Pedido #${selectedOrder.id} concluído na mesa.`
+                                            ? `Pedido #${selectedOrder.id} marcado como pronto na mesa.`
                                             : `Pedido #${selectedOrder.id} marcado como pronto para retirada.`
                                       )
                                     }}
@@ -4186,7 +4198,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         : selectedOrder.delivery === "Delivery"
                                           ? "Enviar para entrega"
                                           : selectedOrder.delivery === "Mesa"
-                                            ? "Concluir mesa"
+                                            ? "Marcar pronto"
                                             : "Marcar pronto"}
                                   </button>
                                 )}
@@ -4196,11 +4208,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                     disabled={selectedOrderIsUpdating}
                                     onClick={() => updateSelectedOrder({ status: "finalizado" }, `Pedido #${selectedOrder.id} finalizado.`)}
                                     className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <CheckCircle2 size={15} />
-                                    {selectedOrderIsUpdating ? "Salvando..." : "Finalizar pedido"}
-                                  </button>
-                                )}
+	                                  >
+	                                    <CheckCircle2 size={15} />
+	                                    {selectedOrderIsUpdating ? "Salvando..." : selectedOrder.delivery === "Mesa" ? "Concluir mesa" : "Finalizar pedido"}
+	                                  </button>
+	                                )}
                                 {selectedOrder.status === "saiu" && (
                                   <button
                                     type="button"
@@ -4287,14 +4299,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                          <p className={`mt-3 break-words text-xs font-bold ${hasPaymentMethod(selectedOrder) ? "text-zinc-400" : "text-orange-200"}`}>
                               {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
                             </p>
-                            {selectedOrder.delivery === "Mesa" && !hasPaymentMethod(selectedOrder) && !isEditing && (
-                              <button
-                                type="button"
-                                onClick={startEdit}
-                                className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+                            {selectedOrder.delivery === "Mesa" && !isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "finalizado" && (
+                              <select
+                                value={hasPaymentMethod(selectedOrder) ? selectedOrder.payment : ""}
+                                disabled={selectedOrderIsUpdating}
+                                onChange={(event) => updateSelectedOrderPayment(event.target.value)}
+                                className="mt-3 h-9 w-full rounded-lg border border-orange-300/25 bg-black/[0.38] px-2 text-xs font-black text-white outline-none transition focus:border-orange-300/70 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                Definir pagamento
-                              </button>
+                                <option value="">Forma de pagamento</option>
+                                {paymentOptions.map((payment) => (
+                                  <option key={payment} value={payment}>{payment}</option>
+                                ))}
+                              </select>
                             )}
 	                        </div>
                       </div>
@@ -4378,14 +4394,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">
 	                            Sub {formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}
 	                          </p>
-                            {selectedOrder.delivery === "Mesa" && !hasPaymentMethod(selectedOrder) && !isEditing && (
-                              <button
-                                type="button"
-                                onClick={startEdit}
-                                className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+                            {selectedOrder.delivery === "Mesa" && !isEditing && selectedOrder.status !== "cancelado" && selectedOrder.status !== "finalizado" && (
+                              <select
+                                value={hasPaymentMethod(selectedOrder) ? selectedOrder.payment : ""}
+                                disabled={selectedOrderIsUpdating}
+                                onChange={(event) => updateSelectedOrderPayment(event.target.value)}
+                                className="mt-3 h-9 w-full rounded-lg border border-orange-300/25 bg-black/[0.38] px-2 text-xs font-black text-white outline-none transition focus:border-orange-300/70 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                Definir pagamento
-                              </button>
+                                <option value="">Forma de pagamento</option>
+                                {paymentOptions.map((payment) => (
+                                  <option key={payment} value={payment}>{payment}</option>
+                                ))}
+                              </select>
                             )}
 	                          {selectedOrder.payment === "Dinheiro" && selectedOrder.needsChange && (
 	                            <p className="mt-2 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-100">

@@ -200,6 +200,10 @@ function mapBackendOrder(order: BackendOrder): Order {
     delivery === "Mesa" &&
     order.statusPagamento === "PENDENTE" &&
     order.pagamentoConfirmado !== true
+  const mappedStatus = order.status ? backendStatusToPanelStatus[order.status] : "novo"
+  const status = isPendingTablePayment && (mappedStatus === "concluido" || mappedStatus === "finalizado")
+    ? "pronto"
+    : mappedStatus
   const address = order.tipoPedido === "MESA"
     ? `Mesa ${order.numeroMesa ?? "-"}`
     : order.tipoPedido === "RETIRADA"
@@ -282,7 +286,7 @@ function mapBackendOrder(order: BackendOrder): Order {
     needsChange: !isPendingTablePayment && order.formaPagamento === "DINHEIRO" && order.trocoPara !== null && order.trocoPara !== undefined,
     changeFor: order.trocoPara ?? undefined,
     phone: order.telefoneCliente ?? "-",
-    status: order.status ? backendStatusToPanelStatus[order.status] : "novo",
+    status,
     subtotal: order.subtotal,
     time: formatTime(createdAt),
     total: calculateBackendTotal(order),
