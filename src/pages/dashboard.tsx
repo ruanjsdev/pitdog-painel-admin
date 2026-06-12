@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Settings,
   Store,
   Truck,
   Upload,
@@ -2039,6 +2040,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     { description: `${cashOrders.length} pedidos`, icon: DollarSign, label: "Caixa", value: "caixa" },
     { description: `${visibleProducts.length} produtos`, icon: Store, label: "Produtos", value: "produtos" },
     { description: "Atendimento", icon: MessageCircle, label: "Bot do Zap", value: "zap" },
+    { description: "Sistema", icon: Settings, label: "Config", value: "configuracoes" },
   ] as const
 
   function showPanel(panel: MainPanel) {

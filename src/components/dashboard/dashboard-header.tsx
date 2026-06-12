@@ -240,7 +240,7 @@ export function DashboardHeader({
         </div>
 
         <nav className="flex min-w-0 flex-1 justify-center" aria-label="Navegação principal">
-          <div className="grid w-full max-w-[720px] grid-cols-4 gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1">
+          <div className="grid w-full max-w-[900px] grid-cols-5 gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1">
           {navigationItems.map((item) => {
             const Icon = item.icon
             const isActive = activePanel === item.value
@@ -443,15 +443,21 @@ export function DashboardHeader({
                         <strong className="block text-sm">Gerenciar Motoboys</strong>
                       </div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onShowPanel("configuracoes")}
-                      className="mt-2 flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-black text-white transition hover:bg-white/10"
-                      role="menuitem"
-                    >
-                      <Printer size={16} />
-                      Configurar impressora
-                    </button>
+	                    <button
+	                      type="button"
+	                      onClick={() => {
+	                        setSettingsOpen(false)
+	                        onShowPanel("configuracoes")
+	                      }}
+	                      className="mt-2 flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-black text-white transition hover:bg-white/10"
+	                      role="menuitem"
+	                    >
+	                      <Printer size={16} />
+	                      <div className="text-left">
+	                        <strong className="block text-sm">Configurações</strong>
+	                        <span className="block text-[11px] text-zinc-500">Impressora e limpeza</span>
+	                      </div>
+	                    </button>
                     <button
                       type="button"
                       onClick={() => onShowPanel("zap")}
