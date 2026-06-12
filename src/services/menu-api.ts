@@ -9,6 +9,7 @@ import type {
 import { adminApiBaseUrl, adminRequest } from "./admin-api"
 
 export const hasMenuBackend = Boolean(adminApiBaseUrl)
+
 const productsAdminPath = "/admin/produtos"
 const subtitleMarkerPrefix = "@@PITS_SUBTITLE:"
 const subtitleMarkerSuffix = "@@"
@@ -69,7 +70,6 @@ const menuImageUploadPaths: Record<MenuImageTarget, (id: number) => string> = {
   combo: (id) => `/admin/combos/${id}/imagem`,
   produto: (id) => `/admin/produtos/${id}/imagem`,
 }
-
 
 function readImageUrl(item: { imageUrl?: string | null; imagemUrl?: string | null; imagem?: string | null }) {
   return item.imageUrl ?? item.imagemUrl ?? item.imagem ?? null
@@ -231,38 +231,48 @@ export const menuApi = {
   async listCategories() {
     if (!adminApiBaseUrl) return []
 
-    return asArray(await adminRequest<BackendCategory[] | { content?: BackendCategory[] } | { data?: BackendCategory[] }>("/admin/categorias")).map(mapCategory)
+    return asArray(
+      await adminRequest<BackendCategory[] | { content?: BackendCategory[] } | { data?: BackendCategory[] }>(
+        "/admin/categorias"
+      )
+    ).map(mapCategory)
   },
 
   async createCategory(category: MenuCategoryDraft) {
-    return mapCategory(await adminRequest<BackendCategory>("/admin/categorias", {
-      body: JSON.stringify({
-        ativo: category.ativo,
-        descricao: category.descricao,
-        nome: category.nome,
-        ordem: category.ordem,
-      }),
-      method: "POST",
-    }))
+    return mapCategory(
+      await adminRequest<BackendCategory>("/admin/categorias", {
+        body: JSON.stringify({
+          ativo: category.ativo,
+          descricao: category.descricao,
+          nome: category.nome,
+          ordem: category.ordem,
+        }),
+        method: "POST",
+      })
+    )
   },
 
   async updateCategory(id: number, category: MenuCategoryDraft) {
-    return mapCategory(await adminRequest<BackendCategory>(`/admin/categorias/${id}`, {
-      body: JSON.stringify({
-        ativo: category.ativo,
-        descricao: category.descricao,
-        nome: category.nome,
-        ordem: category.ordem,
-      }),
-      method: "PUT",
-    }))
+    return mapCategory(
+      await adminRequest<BackendCategory>(`/admin/categorias/${id}`, {
+        body: JSON.stringify({
+          ativo: category.ativo,
+          descricao: category.descricao,
+          nome: category.nome,
+          ordem: category.ordem,
+        }),
+        method: "PUT",
+      })
+    )
   },
 
   async updateCategoryStatus(id: number, ativo: boolean) {
-    return mapCategory(await adminRequest<BackendCategory>(`/admin/categorias/${id}/status`, {
-      body: JSON.stringify({ ativo }),
-      method: "PATCH",
-    }))
+    return mapCategory(
+      await adminRequest<BackendCategory>(`/admin/categorias/${id}/status`, {
+        body: JSON.stringify({ ativo }),
+        method: "PATCH",
+      })
+    )
   },
 
   async deleteCategory(id: number) {
@@ -280,58 +290,64 @@ export const menuApi = {
   async createProduct(product: MenuProductDraft) {
     const highlight = product.highlight.trim()
 
-    return mapProduct(await adminRequest<BackendProduct>(productsAdminPath, {
-      body: JSON.stringify({
-        ativo: product.ativo,
-        addonIds: product.addonIds ?? [],
-        categoriaId: product.categoriaId,
-        descricao: writeProductDescription(product.descricao, highlight),
-        destaque: Boolean(highlight),
-        highlight: highlight || null,
-        flavorIds: product.flavorIds ?? [],
-        flavorRequired: product.flavorRequired ?? false,
-        hasFlavors: product.hasFlavors ?? false,
-        maxFlavors: product.maxFlavors ?? 1,
-        nome: product.nome,
-        permiteAdicionais: product.permiteAdicionais,
-        preco: product.preco,
-        subtitle: highlight || null,
-        subtitulo: highlight || null,
-      }),
-      method: "POST",
-    }))
+    return mapProduct(
+      await adminRequest<BackendProduct>(productsAdminPath, {
+        body: JSON.stringify({
+          ativo: product.ativo,
+          addonIds: product.addonIds ?? [],
+          categoriaId: product.categoriaId,
+          descricao: writeProductDescription(product.descricao, highlight),
+          destaque: Boolean(highlight),
+          highlight: highlight || null,
+          flavorIds: product.flavorIds ?? [],
+          flavorRequired: product.flavorRequired ?? false,
+          hasFlavors: product.hasFlavors ?? false,
+          maxFlavors: product.maxFlavors ?? 1,
+          nome: product.nome,
+          permiteAdicionais: product.permiteAdicionais,
+          preco: product.preco,
+          subtitle: highlight || null,
+          subtitulo: highlight || null,
+        }),
+        method: "POST",
+      })
+    )
   },
 
   async updateProduct(id: number, product: MenuProductDraft) {
     const highlight = product.highlight.trim()
 
-    return mapProduct(await adminRequest<BackendProduct>(`${productsAdminPath}/${id}`, {
-      body: JSON.stringify({
-        ativo: product.ativo,
-        addonIds: product.addonIds ?? [],
-        categoriaId: product.categoriaId,
-        descricao: writeProductDescription(product.descricao, highlight),
-        destaque: Boolean(highlight),
-        highlight: highlight || null,
-        flavorIds: product.flavorIds ?? [],
-        flavorRequired: product.flavorRequired ?? false,
-        hasFlavors: product.hasFlavors ?? false,
-        maxFlavors: product.maxFlavors ?? 1,
-        nome: product.nome,
-        permiteAdicionais: product.permiteAdicionais,
-        preco: product.preco,
-        subtitle: highlight || null,
-        subtitulo: highlight || null,
-      }),
-      method: "PUT",
-    }))
+    return mapProduct(
+      await adminRequest<BackendProduct>(`${productsAdminPath}/${id}`, {
+        body: JSON.stringify({
+          ativo: product.ativo,
+          addonIds: product.addonIds ?? [],
+          categoriaId: product.categoriaId,
+          descricao: writeProductDescription(product.descricao, highlight),
+          destaque: Boolean(highlight),
+          highlight: highlight || null,
+          flavorIds: product.flavorIds ?? [],
+          flavorRequired: product.flavorRequired ?? false,
+          hasFlavors: product.hasFlavors ?? false,
+          maxFlavors: product.maxFlavors ?? 1,
+          nome: product.nome,
+          permiteAdicionais: product.permiteAdicionais,
+          preco: product.preco,
+          subtitle: highlight || null,
+          subtitulo: highlight || null,
+        }),
+        method: "PUT",
+      })
+    )
   },
 
   async updateProductStatus(id: number, ativo: boolean) {
-    return mapProduct(await adminRequest<BackendProduct>(`${productsAdminPath}/${id}/status`, {
-      body: JSON.stringify({ ativo }),
-      method: "PATCH",
-    }))
+    return mapProduct(
+      await adminRequest<BackendProduct>(`${productsAdminPath}/${id}/status`, {
+        body: JSON.stringify({ ativo }),
+        method: "PATCH",
+      })
+    )
   },
 
   async deleteProduct(id: number) {
@@ -347,32 +363,38 @@ export const menuApi = {
   },
 
   async createAdditional(additional: MenuAdditionalDraft) {
-    return mapAdditional(await adminRequest<BackendAdditional>("/admin/adicionais", {
-      body: JSON.stringify({
-        ativo: additional.ativo,
-        nomeAdicional: additional.nome,
-        preco: additional.preco,
-      }),
-      method: "POST",
-    }))
+    return mapAdditional(
+      await adminRequest<BackendAdditional>("/admin/adicionais", {
+        body: JSON.stringify({
+          ativo: additional.ativo,
+          nomeAdicional: additional.nome,
+          preco: additional.preco,
+        }),
+        method: "POST",
+      })
+    )
   },
 
   async updateAdditional(id: number, additional: MenuAdditionalDraft) {
-    return mapAdditional(await adminRequest<BackendAdditional>(`/admin/adicionais/${id}`, {
-      body: JSON.stringify({
-        ativo: additional.ativo,
-        nomeAdicional: additional.nome,
-        preco: additional.preco,
-      }),
-      method: "PUT",
-    }))
+    return mapAdditional(
+      await adminRequest<BackendAdditional>(`/admin/adicionais/${id}`, {
+        body: JSON.stringify({
+          ativo: additional.ativo,
+          nomeAdicional: additional.nome,
+          preco: additional.preco,
+        }),
+        method: "PUT",
+      })
+    )
   },
 
   async updateAdditionalStatus(id: number, ativo: boolean) {
-    return mapAdditional(await adminRequest<BackendAdditional>(`/admin/adicionais/${id}/status`, {
-      body: JSON.stringify({ ativo }),
-      method: "PATCH",
-    }))
+    return mapAdditional(
+      await adminRequest<BackendAdditional>(`/admin/adicionais/${id}/status`, {
+        body: JSON.stringify({ ativo }),
+        method: "PATCH",
+      })
+    )
   },
 
   async deleteAdditional(id: number) {
@@ -392,5 +414,5 @@ export const menuApi = {
     })
 
     return response.imageUrl ?? response.imagemUrl ?? response.url ?? null
-  }
+  },
 }
