@@ -4528,18 +4528,22 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                       const nextStatus = selectedOrder.delivery === "Delivery"
                                         ? "saiu"
                                         : selectedOrder.delivery === "Mesa"
-                                          ? "pronto"
+                                          ? "finalizado"
                                           : "pronto"
                                       return updateSelectedOrder(
                                         { status: nextStatus },
                                         selectedOrder.delivery === "Delivery"
                                           ? `Pedido #${selectedOrder.id} saiu para entrega.`
                                           : selectedOrder.delivery === "Mesa"
-                                            ? `Pedido #${selectedOrder.id} marcado como pronto na mesa.`
+                                            ? `Pedido #${selectedOrder.id} finalizado.`
                                             : `Pedido #${selectedOrder.id} marcado como pronto para retirada.`
                                       )
                                     }}
-                                    className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-black text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-black text-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                      selectedOrder.delivery === "Mesa"
+                                        ? "bg-emerald-400 hover:bg-emerald-300"
+                                        : "bg-cyan-400 hover:bg-cyan-300"
+                                    }`}
                                   >
                                     {selectedOrder.delivery === "Delivery" ? <Truck size={15} /> : <CheckCircle2 size={15} />}
                                     {selectedOrderIsUpdating
@@ -4549,7 +4553,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         : selectedOrder.delivery === "Delivery"
                                           ? "Enviar para entrega"
                                           : selectedOrder.delivery === "Mesa"
-                                            ? "Marcar pronto"
+                                            ? "Concluir mesa"
                                             : "Marcar pronto"}
                                   </button>
                                 )}
