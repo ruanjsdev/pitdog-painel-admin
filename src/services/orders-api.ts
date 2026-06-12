@@ -1,6 +1,6 @@
 import type { Order } from "../types/order"
 import { readOrdersCache } from "../lib/order-sync"
-import { adminApiBaseUrl, adminRequest } from "./admin-api"
+import { AdminApiError, adminApiBaseUrl, adminRequest } from "./admin-api"
 
 export const hasOrdersBackend = Boolean(adminApiBaseUrl)
 
@@ -122,6 +122,15 @@ const panelStatusToBackendStatus: Record<Order["status"], BackendOrderStatus> = 
   preparando: "EM_PREPARO",
   pronto: "PRONTO_PARA_RETIRADA",
   saiu: "SAIU_PARA_ENTREGA",
+}
+
+async function patchOrderStatus(id: number, status: BackendOrderStatus) {
+  const response = await adminRequest<BackendOrder | null>(`/admin/pedidos/${id}/status`, {
+    body: JSON.stringify({ status }),
+    method: "PATCH",
+  })
+
+  return response ? mapBackendOrder(response) : null
 }
 
 const paymentLabels: Record<string, string> = {
@@ -408,10 +417,15 @@ export const ordersApi = {
 
       if (!backendStatus) throw new Error("Status invalido.")
 
-      return mapBackendOrder(await adminRequest<BackendOrder>(`/admin/pedidos/${id}/status`, {
-        body: JSON.stringify({ status: backendStatus }),
-        method: "PATCH",
-      }))
+      try {
+        return await patchOrderStatus(id, backendStatus) ?? changes as Order
+      } catch (error) {
+        if (backendStatus === "PRONTO" && error instanceof AdminApiError && error.status >= 400) {
+          return await patchOrderStatus(id, "PRONTO_PARA_RETIRADA") ?? changes as Order
+        }
+
+        throw error
+      }
     }
 
     if (changes.discount !== undefined || changes.discountPercent !== undefined || changes.discountReason !== undefined) {

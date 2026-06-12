@@ -2048,7 +2048,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 : ordersView
   const showingOrdersPanel = activePanel === "pedidos" || activePanel === "dashboard"
   const navigationItems = [
-    { description: `${counts.novo} novos`, icon: LayoutDashboard, label: "Dashboard", value: "dashboard" },
+    { description: `${visibleOrders.length} na tela`, icon: LayoutDashboard, label: "Dashboard", value: "dashboard" },
     { description: `${cashOrders.length} pedidos`, icon: DollarSign, label: "Caixa", value: "caixa" },
     { description: `${visibleProducts.length} produtos`, icon: Store, label: "Produtos", value: "produtos" },
     { description: "Atendimento", icon: MessageCircle, label: "Bot do Zap", value: "zap" },
