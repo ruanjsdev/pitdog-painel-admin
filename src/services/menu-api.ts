@@ -72,7 +72,7 @@ const menuImageUploadPaths: Record<MenuImageTarget, (id: number) => string> = {
 }
 
 function readImageUrl(item: { imageUrl?: string | null; imagemUrl?: string | null; imagem?: string | null }) {
-  return item.imageUrl ?? item.imagemUrl ?? item.imagem ?? null
+  return item.imagemUrl ?? item.imageUrl ?? item.imagem ?? null
 }
 
 function asArray<T>(response: T[] | { content?: T[]; data?: T[] }) {
@@ -413,6 +413,6 @@ export const menuApi = {
       method: "POST",
     })
 
-    return response.imageUrl ?? response.imagemUrl ?? response.url ?? null
+    return response.imagemUrl ?? response.imageUrl ?? response.url ?? null
   },
 }
