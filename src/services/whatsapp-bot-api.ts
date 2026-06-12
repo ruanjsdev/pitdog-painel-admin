@@ -1,9 +1,6 @@
 import type { Order } from "../types/order"
 
-const botUrlStorageKey = "pitsdog:admin:whatsapp-bot-url:v1"
-const botPinStorageKey = "pitsdog:admin:whatsapp-admin-pin:v1"
-const configuredBotUrl = import.meta.env.VITE_WHATSAPP_BOT_URL ?? ""
-const configuredAdminPin = import.meta.env.VITE_WHATSAPP_ADMIN_PIN ?? ""
+const officialBotUrl = "https://pits-dog-bot.onrender.com"
 
 export type WhatsAppBotStatus = {
   connected: boolean
@@ -32,38 +29,14 @@ export type WhatsAppBotSettings = {
   pixReceiverName?: string
 }
 
-function readLocalSetting(key: string) {
-  try {
-    return window.localStorage.getItem(key)?.trim() ?? ""
-  } catch {
-    return ""
-  }
-}
-
 export function getWhatsAppBotBaseUrl() {
-  return (readLocalSetting(botUrlStorageKey) || configuredBotUrl).replace(/\/$/, "")
-}
-
-export function getWhatsAppAdminPin() {
-  return readLocalSetting(botPinStorageKey) || configuredAdminPin
-}
-
-export function saveWhatsAppBotConnectionSettings(settings: { adminPin?: string; botUrl: string }) {
-  window.localStorage.setItem(botUrlStorageKey, settings.botUrl.trim().replace(/\/$/, ""))
-  window.localStorage.setItem(botPinStorageKey, settings.adminPin?.trim() ?? "")
+  return officialBotUrl
 }
 
 export const whatsappBotBaseUrl = getWhatsAppBotBaseUrl()
 
 function adminHeaders(extraHeaders?: HeadersInit) {
-  const headers = new Headers(extraHeaders)
-  const adminPin = getWhatsAppAdminPin()
-
-  if (adminPin) {
-    headers.set("x-admin-pin", adminPin)
-  }
-
-  return headers
+  return new Headers(extraHeaders)
 }
 
 export async function fetchWhatsAppBotStatus() {
@@ -176,36 +149,6 @@ export async function notifyWhatsAppOrderStatus(event: string, order: Order) {
 
   if (!response.ok || !payload?.ok) {
     throw new Error(payload?.error ?? "Não foi possível enviar a mensagem no WhatsApp.")
-  }
-
-  return payload
-}
-
-export async function sendWhatsAppTestMessage(phone: string) {
-  const cleanPhone = phone.replace(/\D/g, "")
-  const botBaseUrl = getWhatsAppBotBaseUrl()
-
-  if (!botBaseUrl) {
-    throw new Error("Informe a URL do bot WhatsApp no painel Zap.")
-  }
-
-  if (!cleanPhone) {
-    throw new Error("Informe um telefone para testar o envio.")
-  }
-
-  const response = await fetch(`${botBaseUrl}/api/test-message`, {
-    body: JSON.stringify({
-      message: "Teste do bot WhatsApp do Pits Dog. Se recebeu esta mensagem, o envio esta funcionando.",
-      phone: cleanPhone,
-    }),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  })
-
-  const payload = await response.json().catch(() => null) as { error?: string; ok?: boolean } | null
-
-  if (!response.ok || !payload?.ok) {
-    throw new Error(payload?.error ?? "Não foi possível enviar a mensagem de teste.")
   }
 
   return payload

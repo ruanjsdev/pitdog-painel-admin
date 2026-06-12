@@ -52,16 +52,12 @@ import { printApprovalTickets } from "../services/print-service"
 import {
   fetchWhatsAppBotStatus,
   fetchWhatsAppBotSettings,
-  getWhatsAppAdminPin,
   getWhatsAppBotBaseUrl,
   notifyWhatsAppOrderStatus,
-  saveWhatsAppBotConnectionSettings,
   saveWhatsAppBotSettings,
-  sendWhatsAppTestMessage,
   type WhatsAppBotSettings,
   type WhatsAppBotStatus,
 } from "../services/whatsapp-bot-api"
-import { addonsApi } from "../services/addons-api"
 import type { DeliveryPerson, DeliveryPersonDraft } from "../types/delivery"
 import type {
   MenuAdditional,
@@ -272,13 +268,6 @@ const cashTabLabels: Record<CashTab, string> = {
   outros: "Outros",
   refrigerantes: "Refrigerantes",
   todos: "Tudo que saiu",
-}
-
-function readWhatsAppConnectionSettings() {
-  return {
-    adminPin: getWhatsAppAdminPin(),
-    botUrl: getWhatsAppBotBaseUrl(),
-  }
 }
 
 function formatCurrency(value: number) {
@@ -609,9 +598,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [whatsAppBotStatus, setWhatsAppBotStatus] = useState<WhatsAppBotStatus | null>(null)
   const [whatsAppBotLoading, setWhatsAppBotLoading] = useState(false)
   const [whatsAppBotError, setWhatsAppBotError] = useState("")
-  const [whatsAppConnectionSettings, setWhatsAppConnectionSettings] = useState(readWhatsAppConnectionSettings)
-  const [whatsAppTestPhone, setWhatsAppTestPhone] = useState("")
-  const [whatsAppTestSending, setWhatsAppTestSending] = useState(false)
   const [pixSettings, setPixSettings] = useState<WhatsAppBotSettings>(readPixSettings)
   const [pixSettingsSaving, setPixSettingsSaving] = useState(false)
   const [pixSettingsFeedback, setPixSettingsFeedback] = useState("")
@@ -622,12 +608,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [editingCourierId, setEditingCourierId] = useState<string | null>(null)
   const [courierFeedback, setCourierFeedback] = useState("")
   const [courierSaving, setCourierSaving] = useState(false)
-  const [addonModalProduct, setAddonModalProduct] = useState<MenuProduct | null>(null)
-  const [addonModalSearch, setAddonModalSearch] = useState("")
-  const [addonModalSelectedIds, setAddonModalSelectedIds] = useState<string[]>([])
-  const [addonModalInitialIds, setAddonModalInitialIds] = useState<string[]>([])
-  const [addonModalFeedback, setAddonModalFeedback] = useState("")
-  const [addonModalSaving, setAddonModalSaving] = useState(false)
   const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(defaultPrinterConfig)
   const [printerFeedback, setPrinterFeedback] = useState("")
   const [printerLoading, setPrinterLoading] = useState(false)
@@ -726,28 +706,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  function saveWhatsAppConnectionSettings() {
-    const botUrl = whatsAppConnectionSettings.botUrl.trim().replace(/\/$/, "")
-
-    if (!botUrl) {
-      setWhatsAppBotError("Informe a URL do bot WhatsApp no Render.")
-      return
-    }
-
-    saveWhatsAppBotConnectionSettings({
-      adminPin: whatsAppConnectionSettings.adminPin,
-      botUrl,
-    })
-    setWhatsAppConnectionSettings({
-      ...whatsAppConnectionSettings,
-      botUrl,
-    })
-    setWhatsAppBotStatus(null)
-    setWhatsAppBotError("")
-    showStatusToast("URL do bot salva")
-    void refreshWhatsAppBotStatus(true)
-  }
-
   async function savePixSettings() {
     setPixSettingsSaving(true)
     setPixSettingsFeedback("")
@@ -767,24 +725,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
       showNotice(message)
     } finally {
       setPixSettingsSaving(false)
-    }
-  }
-
-  async function testWhatsAppMessage() {
-    setWhatsAppTestSending(true)
-    setWhatsAppBotError("")
-
-    try {
-      await sendWhatsAppTestMessage(whatsAppTestPhone)
-      showStatusToast("Teste enviado no WhatsApp")
-      void refreshWhatsAppBotStatus()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível enviar a mensagem de teste."
-
-      setWhatsAppBotError(message)
-      showNotice(message)
-    } finally {
-      setWhatsAppTestSending(false)
     }
   }
 
@@ -1869,72 +1809,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  function openProductAddons(product: MenuProduct) {
-    const addonIds = product.addonIds ?? []
-
-    setAddonModalProduct(product)
-    setAddonModalSelectedIds(addonIds)
-    setAddonModalInitialIds(addonIds)
-    setAddonModalFeedback("")
-    setAddonModalSearch("")
-  }
-
-  function closeProductAddons() {
-    const hasPendingChanges = addonModalSelectedIds.slice().sort().join("|") !== addonModalInitialIds.slice().sort().join("|")
-
-    if (hasPendingChanges && !window.confirm("Existem alterações não salvas. Deseja sair?")) return
-
-    setAddonModalProduct(null)
-    setAddonModalSelectedIds([])
-    setAddonModalInitialIds([])
-    setAddonModalFeedback("")
-    setAddonModalSearch("")
-  }
-
-  async function saveProductAddons() {
-    if (!addonModalProduct) return
-
-    setAddonModalSaving(true)
-    setAddonModalFeedback("")
-
-    const productId = addonModalProduct.id
-    const nextAddonIds = addonModalSelectedIds
-
-    try {
-      let relationWarning = ""
-
-      try {
-        await addonsApi.updateProductAddons(String(productId), nextAddonIds)
-      } catch (error) {
-        relationWarning = error instanceof Error ? error.message : "A API ainda não possui suporte para vínculo de adicionais por produto."
-      }
-
-      await menuAdmin.updateProduct(productId, {
-        addonIds: nextAddonIds,
-        ativo: addonModalProduct.ativo,
-        categoriaId: addonModalProduct.categoriaId,
-        descricao: addonModalProduct.descricao,
-        flavorIds: addonModalProduct.flavorIds ?? [],
-        flavorRequired: addonModalProduct.flavorRequired ?? false,
-        hasFlavors: addonModalProduct.hasFlavors ?? false,
-        highlight: addonModalProduct.highlight ?? addonModalProduct.subtitle ?? "",
-        imagem: addonModalProduct.imageUrl ?? addonModalProduct.imagem ?? "",
-        maxFlavors: addonModalProduct.maxFlavors ?? 1,
-        nome: addonModalProduct.nome,
-        permiteAdicionais: nextAddonIds.length > 0 || Boolean(addonModalProduct.permiteAdicionais),
-        preco: addonModalProduct.preco,
-      })
-      setAddonModalFeedback(relationWarning ? `${relationWarning} Vínculo enviado junto ao produto.` : "Adicionais vinculados ao produto.")
-      setAddonModalInitialIds(nextAddonIds)
-      showStatusToast("Adicionais do produto salvos.")
-    } catch (error) {
-      setAddonModalFeedback(error instanceof Error ? `${error.message} Vínculo mantido localmente.` : "Vínculo mantido localmente.")
-      menuAdmin.applyProductStatus(productId, addonModalProduct.ativo)
-    } finally {
-      setAddonModalSaving(false)
-    }
-  }
-
   const filters: Array<{ label: string; value: OrderFilter; count: number }> = [
     { label: "Todos os pedidos", value: "todos", count: counts.all },
     { label: "Mesa", value: "mesa", count: counts.mesa },
@@ -1981,7 +1855,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const showingOrdersPanel = activePanel === "pedidos" || activePanel === "dashboard"
   const navigationItems = [
     { description: `${counts.novo} novos`, icon: LayoutDashboard, label: "Dashboard", value: "dashboard" },
-    { description: `${visibleOrders.length} na tela`, icon: PackageCheck, label: "Pedidos", value: "pedidos" },
+    { description: `${cashOrders.length} pedidos`, icon: DollarSign, label: "Caixa", value: "caixa" },
     { description: `${visibleProducts.length} produtos`, icon: Store, label: "Produtos", value: "produtos" },
     { description: "Atendimento", icon: MessageCircle, label: "Bot do Zap", value: "zap" },
   ] as const
@@ -1994,7 +1868,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     const nextMenuSection = menuSections[panel]
 
     if (nextMenuSection) setMenuPanelSection(nextMenuSection)
-    if (panel === "dashboard" || panel === "pedidos") setOrdersView(panel)
+    if (panel === "dashboard" || panel === "pedidos") setOrdersView("dashboard")
 
     setMenuPanelOpen(Boolean(nextMenuSection))
     setCashPanelOpen(panel === "caixa")
@@ -2199,7 +2073,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </div>
               <button type="button" onClick={() => showPanel("pedidos")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                 <LayoutDashboard size={15} />
-                Voltar aos pedidos
+                Voltar ao dashboard
               </button>
             </div>
 
@@ -2303,11 +2177,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </div>
               <button type="button" onClick={() => showPanel("pedidos")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                 <LayoutDashboard size={15} />
-                Voltar aos pedidos
+                Voltar ao dashboard
               </button>
             </div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <div className="mt-4 max-w-xl">
               <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
                 <div className="flex items-center gap-2 text-sm font-black text-white">
                   <Printer size={16} className="text-orange-300" />
@@ -2382,141 +2256,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   </div>
                 </div>
               </article>
-
-              <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
-                <div className="flex items-center gap-2 text-sm font-black text-white">
-                  <Store size={16} className="text-orange-300" />
-                  Configurações gerais
-                </div>
-                <div className="mt-3 space-y-3">
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Taxa padrão de entrega</span>
-                    <input min={0} step={0.5} type="number" value={localPanelSettings.defaultDeliveryFee} onChange={(event) => setLocalPanelSettings((settings) => ({ ...settings, defaultDeliveryFee: Math.max(0, Number(event.target.value) || 0) }))} className="h-10 w-full rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-white outline-none" />
-                  </label>
-                  <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
-                    Modo compacto
-                    <input type="checkbox" checked={localPanelSettings.compactMode} onChange={(event) => setLocalPanelSettings((settings) => ({ ...settings, compactMode: event.target.checked }))} className="h-4 w-4 accent-orange-400" />
-                  </label>
-                </div>
-              </article>
-
-              <article className="rounded-lg border border-white/10 bg-black/[0.18] p-4">
-                <div className="flex items-center gap-2 text-sm font-black text-white">
-                  <MessageCircle size={16} className="text-orange-300" />
-                  Integrações
-                </div>
-                <div className="mt-3 space-y-3">
-                  <button type="button" onClick={() => showPanel("zap")} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
-                    <MessageCircle size={15} />
-                    Abrir bot do Zap
-                  </button>
-                  <a href="https://pitsdog-cardapio-oficial.onrender.com" target="_blank" rel="noreferrer" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300">
-                    <Upload size={15} />
-                    Abrir cardápio
-                  </a>
-                </div>
-              </article>
             </div>
           </section>
-        )}
-
-        {addonModalProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm">
-            <section className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-orange-300/25 bg-[#100b08] shadow-[0_28px_90px_rgba(0,0,0,0.55)]">
-              <header className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-orange-400/[0.08] p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Gerenciar adicionais</p>
-                  <h2 className="mt-1 text-xl font-black text-white">{addonModalProduct.nome}</h2>
-                </div>
-                <button type="button" onClick={closeProductAddons} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10">
-                  <X size={16} />
-                  Fechar
-                </button>
-              </header>
-
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                {addonModalFeedback && (
-                  <div className="mb-3 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.08] p-3 text-sm font-bold leading-6 text-cyan-50/80">
-                    {addonModalFeedback}
-                  </div>
-                )}
-
-                <label className="flex h-10 min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-black/[0.24] px-3 text-sm text-zinc-400">
-                  <Search size={15} />
-                  <input value={addonModalSearch} onChange={(event) => setAddonModalSearch(event.target.value)} className="w-full bg-transparent text-white outline-none placeholder:text-zinc-500" placeholder="Buscar adicional..." />
-                </label>
-
-                <div className="mt-3 space-y-2">
-                  {menuAdmin.additionals.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                      Nenhum adicional cadastrado.
-                    </div>
-                  )}
-                  {menuAdmin.additionals.length > 0 && menuAdmin.additionals.filter((additional) => normalizeText(`${additional.nome} ${additional.descricao}`).includes(normalizeText(addonModalSearch))).length === 0 && (
-                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500">
-                      Nenhum resultado na busca.
-                    </div>
-                  )}
-                  {menuAdmin.additionals
-                    .filter((additional) => normalizeText(`${additional.nome} ${additional.descricao}`).includes(normalizeText(addonModalSearch)))
-                    .map((additional) => {
-                      const addonId = String(additional.id)
-                      const selected = addonModalSelectedIds.includes(addonId)
-
-                      return (
-                        <button
-                          key={additional.id}
-                          type="button"
-                          onClick={() => setAddonModalSelectedIds((currentIds) => (
-                            selected ? currentIds.filter((id) => id !== addonId) : [...currentIds, addonId]
-                          ))}
-                          className={`flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition ${
-                            selected
-                              ? "border-orange-300/45 bg-orange-400/15"
-                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
-                          }`}
-                        >
-                          <span className="flex min-w-0 items-center gap-3">
-                            <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${
-                              selected ? "border-orange-300 bg-orange-400 text-black" : "border-white/15 bg-black/20 text-transparent"
-                            }`}>
-                              <Check size={14} />
-                            </span>
-                            <span className="min-w-0">
-                              <strong className="block truncate text-sm font-black text-white">{additional.nome}</strong>
-                              <span className="mt-0.5 block truncate text-xs text-zinc-500">{additional.descricao || "Sem descrição"}</span>
-                            </span>
-                          </span>
-                          <span className="flex shrink-0 flex-col items-end gap-1">
-                            <span className="text-xs font-black text-orange-200">{formatCurrency(additional.preco)}</span>
-                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
-                              additional.ativo ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"
-                            }`}>
-                              {additional.ativo ? "Ativo" : "Inativo"}
-                            </span>
-                          </span>
-                        </button>
-                      )
-                    })}
-                </div>
-              </div>
-
-              <footer className="grid shrink-0 gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
-                <button type="button" onClick={closeProductAddons} disabled={addonModalSaving} className="h-11 rounded-lg border border-white/10 bg-white/5 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void saveProductAddons()}
-                  disabled={addonModalSaving || addonModalSelectedIds.slice().sort().join("|") === addonModalInitialIds.slice().sort().join("|")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-orange-400 text-sm font-black text-black transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {addonModalSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  {addonModalSaving ? "Salvando..." : "Salvar alterações"}
-                </button>
-              </footer>
-            </section>
-          </div>
         )}
 
         {isEditing && draft && selectedOrder && (
@@ -3048,7 +2789,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
                 >
                   <LayoutDashboard size={15} />
-                  Voltar aos pedidos
+                  Voltar ao dashboard
                 </button>
                 <span className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-black ${
                   menuAdmin.status === "online"
@@ -3515,10 +3256,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                     <Edit3 size={14} />
                                     Editar
                                   </button>
-                                  <button type="button" onClick={() => openProductAddons(product)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-orange-300/25 bg-orange-400/10 px-3 text-xs font-black text-orange-100 transition hover:bg-orange-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50">
-                                    <Plus size={14} />
-                                    Adicionais
-                                  </button>
                                   <button type="button" onClick={() => toggleProductStatus(product)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                     product.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
                                   }`}>
@@ -3644,7 +3381,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10"
                 >
                   <LayoutDashboard size={15} />
-                  Voltar aos pedidos
+                  Voltar ao dashboard
                 </button>
               </div>
             </div>
@@ -3701,69 +3438,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
                 <article className="rounded-lg border border-white/10 bg-black/[0.18] p-3">
                   <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-300">Serviço</p>
-                  <label className="mt-2 block text-xs font-black text-zinc-300" htmlFor="whatsapp-bot-url">
-                    URL do bot no Render
-                  </label>
-                  <input
-                    id="whatsapp-bot-url"
-                    value={whatsAppConnectionSettings.botUrl}
-                    onChange={(event) => setWhatsAppConnectionSettings((currentSettings) => ({
-                      ...currentSettings,
-                      botUrl: event.target.value,
-                    }))}
-                    placeholder="https://seu-bot.onrender.com"
-                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
-                  />
-                  <label className="mt-3 block text-xs font-black text-zinc-300" htmlFor="whatsapp-admin-pin">
-                    PIN administrativo do bot
-                  </label>
-                  <input
-                    id="whatsapp-admin-pin"
-                    value={whatsAppConnectionSettings.adminPin}
-                    onChange={(event) => setWhatsAppConnectionSettings((currentSettings) => ({
-                      ...currentSettings,
-                      adminPin: event.target.value,
-                    }))}
-                    placeholder="Mesmo ADMIN_PIN configurado no Render"
-                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
-                  />
-                  <p className="mt-1 text-[11px] font-bold leading-5 text-zinc-500">
-                    Esse PIN precisa ser igual ao `ADMIN_PIN` nas variáveis de ambiente do Render. Se no Render não existir `ADMIN_PIN`, pode deixar vazio.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={saveWhatsAppConnectionSettings}
-                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
-                  >
-                    <Save size={15} />
-                    Salvar conexão
-                  </button>
-                </article>
-                <article className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Teste de envio</p>
-                  <h3 className="mt-1 text-lg font-black text-white">Validar mensagem</h3>
-                  <p className="mt-1 text-xs font-bold leading-5 text-zinc-500">
-                    Usa a mesma conexão, o mesmo PIN e o mesmo WhatsApp dos pedidos.
-                  </p>
-                  <label className="mt-3 block text-xs font-black text-zinc-300" htmlFor="whatsapp-test-phone">
-                    Telefone com DDD
-                  </label>
-                  <input
-                    id="whatsapp-test-phone"
-                    value={whatsAppTestPhone}
-                    onChange={(event) => setWhatsAppTestPhone(event.target.value)}
-                    placeholder="Ex: 91999999999"
-                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-orange-300/60"
-                  />
-                  <button
-                    type="button"
-                    disabled={whatsAppTestSending}
-                    onClick={() => void testWhatsAppMessage()}
-                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.18] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <MessageCircle size={15} />
-                    {whatsAppTestSending ? "Enviando..." : "Enviar teste"}
-                  </button>
+                  <div className="mt-2 rounded-lg border border-white/10 bg-black/[0.28] px-3 py-2 text-sm font-black text-white">
+                    {getWhatsAppBotBaseUrl()}
+                  </div>
                 </article>
               </div>
 

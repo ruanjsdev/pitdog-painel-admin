@@ -239,10 +239,8 @@ export function DashboardHeader({
           </div>
         </div>
 
-        <nav
-          className="flex min-w-0 flex-1 gap-2 overflow-x-auto rounded-lg border border-white/10 bg-black/[0.22] p-1"
-          aria-label="Navegação principal"
-        >
+        <nav className="flex min-w-0 flex-1 justify-center" aria-label="Navegação principal">
+          <div className="grid w-full max-w-[720px] grid-cols-4 gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1">
           {navigationItems.map((item) => {
             const Icon = item.icon
             const isActive = activePanel === item.value
@@ -252,7 +250,7 @@ export function DashboardHeader({
                 key={item.value}
                 type="button"
                 onClick={() => onShowPanel(item.value)}
-                className={`flex min-w-[142px] shrink-0 items-center gap-3 rounded-lg px-3 text-left transition ${
+                className={`flex min-w-0 items-center gap-2 rounded-lg px-2 text-left transition ${
                   isActive
                     ? "bg-orange-400 text-black shadow-[0_14px_32px_rgba(255,106,0,0.22)]"
                     : "text-zinc-300 hover:bg-white/[0.07] hover:text-white"
@@ -274,6 +272,7 @@ export function DashboardHeader({
               </button>
             )
           })}
+          </div>
         </nav>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -308,7 +307,7 @@ export function DashboardHeader({
 
             {settingsOpen && (
               <div
-                className="absolute right-0 top-11 z-50 w-[min(92vw,360px)] overflow-hidden rounded-lg border border-white/10 bg-[#100b08] shadow-[0_28px_70px_rgba(0,0,0,0.58)]"
+                className="absolute right-0 top-11 z-50 max-h-[calc(100vh-96px)] w-[min(92vw,360px)] overflow-y-auto rounded-lg border border-white/10 bg-[#100b08] shadow-[0_28px_70px_rgba(0,0,0,0.58)]"
                 role="menu"
               >
                 {soundPickerOpen ? (
@@ -516,29 +515,6 @@ export function DashboardHeader({
                       </span>
                       <ChevronDown size={14} className="-rotate-90 text-zinc-500" />
                     </button>
-                    <div className="my-2 border-t border-white/10 pt-2">
-                      <p className="mb-1 px-3 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
-                        Entrega
-                      </p>
-                      <label className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-black text-white transition hover:bg-white/[0.07]">
-                        <span className="flex items-center gap-2">
-                          <Bike size={16} />
-                          Taxa padrão
-                        </span>
-                        <input
-                          min={0}
-                          step={0.5}
-                          value={localPanelSettings.defaultDeliveryFee}
-                          onChange={(event) => updateLocalPanelSetting(
-                            "defaultDeliveryFee",
-                            Math.max(0, Number(event.target.value) || 0)
-                          )}
-                          onClick={(event) => event.stopPropagation()}
-                          type="number"
-                          className="h-8 w-20 rounded-lg border border-white/10 bg-black/30 px-2 text-center text-xs font-black text-white outline-none focus:border-orange-300/55"
-                        />
-                      </label>
-                    </div>
                     <div className="my-2 border-t border-white/10 pt-2">
                       <p className="mb-1 px-3 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
                         Impressora
