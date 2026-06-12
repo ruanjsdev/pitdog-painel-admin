@@ -98,6 +98,18 @@ async function listWithPublicFallback<T>(adminPath: string, publicPath: string) 
   return asArray(await adminRequest<T[] | { content?: T[] } | { data?: T[] }>(publicPath, undefined, { auth: false }))
 }
 
+async function listPublicFirst<T>(publicPath: string, adminPath: string) {
+  try {
+    const publicItems = asArray(await adminRequest<T[] | { content?: T[] } | { data?: T[] }>(publicPath, undefined, { auth: false }))
+
+    if (publicItems.length > 0) return publicItems
+  } catch (error) {
+    console.warn(`[menu-api] Falha ao listar ${publicPath}; tentando ${adminPath}.`, error)
+  }
+
+  return listWithPublicFallback<T>(adminPath, publicPath)
+}
+
 function mapCategory(category: BackendCategory): MenuCategory {
   return {
     ...category,
@@ -265,7 +277,7 @@ export const menuApi = {
   async listProducts() {
     if (!adminApiBaseUrl) return []
 
-    return (await listWithPublicFallback<BackendProduct>(productsAdminPath, "/produtos")).map(mapProduct)
+    return (await listPublicFirst<BackendProduct>("/produtos", productsAdminPath)).map(mapProduct)
   },
 
   async createProduct(product: MenuProductDraft) {
@@ -334,7 +346,7 @@ export const menuApi = {
   async listAdditionals() {
     if (!adminApiBaseUrl) return []
 
-    return (await listWithPublicFallback<BackendAdditional>("/admin/adicionais", "/adicionais")).map(mapAdditional)
+    return (await listPublicFirst<BackendAdditional>("/adicionais", "/admin/adicionais")).map(mapAdditional)
   },
 
   async createAdditional(additional: MenuAdditionalDraft) {
