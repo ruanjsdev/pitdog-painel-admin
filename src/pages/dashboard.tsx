@@ -402,6 +402,12 @@ function isMoneyReceived(order: Order) {
   return order.status !== "cancelado"
 }
 
+function hasPaymentMethod(order: Pick<Order, "payment"> | { payment?: string }) {
+  const normalized = normalizeText(order.payment ?? "").trim()
+
+  return Boolean(normalized && normalized !== "-" && !normalized.includes("nao informado") && !normalized.includes("selecionar"))
+}
+
 function getCashCategory(itemName: string): CashTab {
   const normalized = normalizeText(itemName)
 
@@ -1379,6 +1385,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
       return false
     }
 
+    if ((changes.status === "concluido" || changes.status === "finalizado") && !hasPaymentMethod({ payment: changes.payment ?? selectedOrder.payment })) {
+      showNotice("Informe a forma de pagamento antes de concluir o pedido.")
+      startEdit()
+      return false
+    }
+
     const orderId = selectedOrder.backendId ?? selectedOrder.id
     const previousOrder = selectedOrder
     const isStatusAction = "status" in changes || "backendStatus" in changes
@@ -1503,7 +1515,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       needsChange: selectedOrder.needsChange ?? false,
       neighborhood: "",
       notes: selectedOrder.notes ?? "",
-      payment: selectedOrder.payment,
+      payment: hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "",
       phone: selectedOrder.phone,
       productCategoryToAddId: menuAdmin.categories.find((category) => category.ativo)?.id ?? 0,
       productToAddId: 0,
@@ -2387,6 +2399,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 	                            }}
 	                            className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none focus:border-orange-300/60"
 	                          >
+                              <option value="">Selecionar pagamento</option>
 	                            {paymentOptions.map((payment) => (
 	                              <option key={payment} value={payment}>{payment}</option>
 	                            ))}
@@ -4271,8 +4284,19 @@ export function Dashboard({ onLogout }: DashboardProps) {
                           <strong className="mt-2 block text-3xl font-black leading-none text-emerald-100">
 	                            {formatCurrency(calculateOrderTotal(selectedOrder))}
                           </strong>
-                          <p className="mt-3 break-words text-xs font-bold text-zinc-400">{selectedOrder.payment}</p>
-                        </div>
+	                          <p className={`mt-3 break-words text-xs font-bold ${hasPaymentMethod(selectedOrder) ? "text-zinc-400" : "text-orange-200"}`}>
+                              {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
+                            </p>
+                            {selectedOrder.delivery === "Mesa" && !hasPaymentMethod(selectedOrder) && !isEditing && (
+                              <button
+                                type="button"
+                                onClick={startEdit}
+                                className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+                              >
+                                Definir pagamento
+                              </button>
+                            )}
+	                        </div>
                       </div>
                     </div>
 
@@ -4348,10 +4372,21 @@ export function Dashboard({ onLogout }: DashboardProps) {
                             <DollarSign size={15} />
                             <p className="text-[10px] font-black uppercase tracking-[0.12em]">Conta</p>
                           </div>
-	                          <strong className="mt-2 block text-base text-white">{selectedOrder.payment}</strong>
+	                          <strong className={`mt-2 block text-base ${hasPaymentMethod(selectedOrder) ? "text-white" : "text-orange-200"}`}>
+                              {hasPaymentMethod(selectedOrder) ? selectedOrder.payment : "Pagamento não informado"}
+                            </strong>
 	                          <p className="mt-1 break-words text-sm font-bold text-zinc-400">
 	                            Sub {formatCurrency(selectedOrder.subtotal ?? selectedOrder.total)}
 	                          </p>
+                            {selectedOrder.delivery === "Mesa" && !hasPaymentMethod(selectedOrder) && !isEditing && (
+                              <button
+                                type="button"
+                                onClick={startEdit}
+                                className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-orange-400 px-3 text-xs font-black text-black transition hover:bg-orange-300"
+                              >
+                                Definir pagamento
+                              </button>
+                            )}
 	                          {selectedOrder.payment === "Dinheiro" && selectedOrder.needsChange && (
 	                            <p className="mt-2 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-100">
 	                              Troco para {formatCurrency(selectedOrder.changeFor ?? 0)}

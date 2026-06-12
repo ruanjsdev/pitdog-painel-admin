@@ -131,6 +131,19 @@ const paymentLabels: Record<string, string> = {
   PIX: "Pix",
 }
 
+const panelPaymentToBackend: Record<string, BackendPaymentMethod> = {
+  "Cartão de crédito": "CARTAO_CREDITO",
+  "Cartão de débito": "CARTAO_DEBITO",
+  Dinheiro: "DINHEIRO",
+  Pix: "PIX",
+}
+
+function mapPanelPaymentToBackend(payment?: string) {
+  if (!payment || payment === "-") return undefined
+
+  return panelPaymentToBackend[payment]
+}
+
 function formatTime(value?: string) {
   if (!value) return "Agora"
 
@@ -409,6 +422,35 @@ export const ordersApi = {
         }),
         method: "PATCH",
       }))
+    }
+
+    const hasPaymentChanges =
+      changes.payment !== undefined ||
+      changes.needsChange !== undefined ||
+      changes.changeFor !== undefined ||
+      changes.paymentConfirmed !== undefined
+
+    if (hasPaymentChanges) {
+      const formaPagamento = mapPanelPaymentToBackend(changes.payment)
+      const paymentPatch = {
+        formaPagamento,
+        pagamentoConfirmado: changes.paymentConfirmed,
+        statusPagamento: changes.paymentConfirmed ? "CONFIRMADO" : undefined,
+        trocoPara: changes.payment === "Dinheiro" && changes.needsChange ? changes.changeFor : undefined,
+      }
+
+      if (!formaPagamento) return changes as Order
+
+      try {
+        await adminRequest<BackendOrder>(`/admin/pedidos/${id}/pagamento`, {
+          body: JSON.stringify(paymentPatch),
+          method: "PATCH",
+        })
+      } catch (error) {
+        console.warn(`[orders-api] Não foi possível atualizar pagamento do pedido #${id} na API. Mantendo alteração local.`, error)
+      }
+
+      return changes as Order
     }
 
     return changes as Order
