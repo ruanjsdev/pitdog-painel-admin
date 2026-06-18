@@ -275,13 +275,13 @@ export function DashboardHeader({
           </div>
         </nav>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_40px_40px] items-center gap-2 rounded-lg border border-white/10 bg-black/[0.18] p-1 sm:flex sm:w-auto sm:flex-wrap sm:border-0 sm:bg-transparent sm:p-0">
           <ConnectionStatusBadge
             connectionStatus={connectionStatus}
             isSyncing={isSyncing}
           />
           <button
-            className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:bg-white/10 sm:h-9 sm:w-9"
             type="button"
             onClick={() => onNotice("Notificações conferidas.")}
             aria-label="Notificações"
@@ -292,7 +292,7 @@ export function DashboardHeader({
             <button
               type="button"
               onClick={() => setSettingsOpen((value) => !value)}
-              className={`inline-flex h-9 items-center gap-2 rounded-lg border px-2.5 text-xs font-black transition ${
+              className={`inline-flex h-10 w-10 items-center justify-center gap-1 rounded-lg border text-xs font-black transition sm:h-9 sm:w-auto sm:px-2.5 ${
                 settingsOpen
                   ? "border-orange-300/45 bg-orange-400/15 text-orange-100"
                   : "border-white/10 bg-white/5 text-white hover:bg-white/10"
@@ -302,12 +302,12 @@ export function DashboardHeader({
               aria-label="Configurações do painel"
             >
               <UserRound size={16} />
-              <ChevronDown size={14} />
+              <ChevronDown className="hidden sm:block" size={14} />
             </button>
 
             {settingsOpen && (
               <div
-                className="absolute right-0 top-11 z-50 max-h-[calc(100vh-96px)] w-[min(92vw,360px)] overflow-y-auto rounded-lg border border-white/10 bg-[#100b08] shadow-[0_28px_70px_rgba(0,0,0,0.58)]"
+                className="fixed left-2 right-2 top-24 z-50 max-h-[calc(100dvh-112px)] overflow-y-auto rounded-lg border border-white/10 bg-[#100b08] shadow-[0_28px_70px_rgba(0,0,0,0.58)] sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-[min(92vw,360px)] sm:max-h-[calc(100vh-96px)]"
                 role="menu"
               >
                 {soundPickerOpen ? (
