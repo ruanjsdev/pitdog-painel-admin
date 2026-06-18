@@ -38,6 +38,7 @@ jobs:
           VITE_API_URL: https://pitsdog-api-production.up.railway.app
           VITE_API_BASE_URL: https://pitsdog-api-production.up.railway.app
           VITE_MENU_API_BASE_URL: https://pitsdog-api-production.up.railway.app
+          VITE_SHOWCASE_API_URL: https://pitsdog-cardapio-oficial.onrender.com/api
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3

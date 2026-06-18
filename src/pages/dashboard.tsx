@@ -52,6 +52,7 @@ import {
   orderHistoryRetentionDays,
 } from "../lib/order-sync"
 import { printApprovalTickets } from "../services/print-service"
+import { loadProductShowcase, saveProductShowcase } from "../services/showcase-api"
 import {
   fetchWhatsAppBotStatus,
   fetchWhatsAppBotSettings,
@@ -154,6 +155,7 @@ const localPrinterConfigStorageKey = "pitsdog:admin:printer-config:v1"
 const menuImageMaxSizeMb = 5
 const menuImageMaxSizeBytes = menuImageMaxSizeMb * 1024 * 1024
 const menuImageMimeTypes = new Set(["image/jpeg", "image/png"])
+const showcaseProductLimit = 3
 
 const emptyCategoryDraft: MenuCategoryDraft = {
   descricao: "",
@@ -674,6 +676,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [productSaving, setProductSaving] = useState(false)
   const [productSearch, setProductSearch] = useState("")
   const [productCategoryFilter, setProductCategoryFilter] = useState(0)
+  const [showcaseProductIds, setShowcaseProductIds] = useState<string[]>([])
+  const [showcaseLoading, setShowcaseLoading] = useState(false)
   const [additionalDraft, setAdditionalDraft] = useState<MenuAdditionalDraft>(emptyAdditionalDraft)
   const [additionalSaving, setAdditionalSaving] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
@@ -1092,8 +1096,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }, [menuAdmin.categories, visibleProducts])
 
   const showcaseProducts = useMemo(
-    () => menuAdmin.products.filter((product) => product.vitrine ?? product.destaque),
-    [menuAdmin.products]
+    () => {
+      const productsById = new Map(menuAdmin.products.map((product) => [String(product.id), product]))
+
+      return showcaseProductIds
+        .map((productId) => productsById.get(productId))
+        .filter((product): product is MenuProduct => Boolean(product))
+    },
+    [menuAdmin.products, showcaseProductIds]
   )
 
   const cashOrders = useMemo(
@@ -1979,32 +1989,31 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   async function toggleProductShowcase(product: MenuProduct) {
-    const nextShowcase = !(product.vitrine ?? product.destaque ?? false)
+    const productId = String(product.id)
+    const isCurrentShowcase = showcaseProductIds.includes(productId)
 
-    menuAdmin.applyProductShowcase(product.id, nextShowcase)
-    showNotice(nextShowcase ? "Produto colocado na vitrine." : "Produto removido da vitrine.")
+    if (!isCurrentShowcase && showcaseProductIds.length >= showcaseProductLimit) {
+      showNotice(`A vitrine do site aceita no maximo ${showcaseProductLimit} produtos. Remova um antes de colocar outro.`)
+      return
+    }
+
+    const previousShowcaseProductIds = showcaseProductIds
+    const nextShowcaseProductIds = isCurrentShowcase
+      ? showcaseProductIds.filter((currentProductId) => currentProductId !== productId)
+      : [...showcaseProductIds, productId]
+
+    setShowcaseProductIds(nextShowcaseProductIds)
+    menuAdmin.applyProductShowcase(product.id, !isCurrentShowcase)
+    showNotice(isCurrentShowcase ? "Produto removido da vitrine." : "Produto colocado na vitrine.")
 
     try {
-      await menuAdmin.updateProduct(product.id, {
-        ativo: product.ativo,
-        addonIds: product.addonIds ?? [],
-        categoriaId: product.categoriaId,
-        descricao: product.descricao,
-        flavorIds: product.flavorIds ?? [],
-        flavorRequired: product.flavorRequired ?? false,
-        hasFlavors: product.hasFlavors ?? false,
-        highlight: product.highlight ?? product.subtitle ?? "",
-        imageFile: null,
-        imagem: product.imageUrl ?? product.imagem ?? "",
-        maxFlavors: product.maxFlavors ?? 1,
-        nome: product.nome,
-        permiteAdicionais: product.permiteAdicionais ?? false,
-        preco: product.preco,
-        vitrine: nextShowcase,
-      })
-      showStatusToast(nextShowcase ? `${product.nome} apareceu na vitrine.` : `${product.nome} saiu da vitrine.`, 8500)
+      const savedProductIds = await saveProductShowcase(nextShowcaseProductIds)
+
+      setShowcaseProductIds(savedProductIds)
+      showStatusToast(isCurrentShowcase ? `${product.nome} saiu da vitrine.` : `${product.nome} apareceu na vitrine.`, 8500)
     } catch (error) {
-      menuAdmin.applyProductShowcase(product.id, product.vitrine ?? product.destaque ?? false)
+      setShowcaseProductIds(previousShowcaseProductIds)
+      menuAdmin.applyProductShowcase(product.id, isCurrentShowcase)
       showNotice(error instanceof Error ? error.message : "Não foi possível atualizar a vitrine na API agora.")
     }
   }
@@ -2221,6 +2230,38 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
     void menuAdmin.loadMenu()
   }, [cashPanelOpen, menuPanelOpen])
+
+  useEffect(() => {
+    if (!menuPanelOpen) return
+
+    let ignore = false
+
+    async function loadShowcase() {
+      setShowcaseLoading(true)
+
+      try {
+        const productIds = await loadProductShowcase()
+
+        if (!ignore) {
+          setShowcaseProductIds(productIds)
+        }
+      } catch (error) {
+        if (!ignore) {
+          showNotice(error instanceof Error ? error.message : "Nao foi possivel carregar a vitrine do site.")
+        }
+      } finally {
+        if (!ignore) {
+          setShowcaseLoading(false)
+        }
+      }
+    }
+
+    void loadShowcase()
+
+    return () => {
+      ignore = true
+    }
+  }, [menuPanelOpen])
 
   return (
     <MainLayout>
@@ -3785,7 +3826,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         Adicionais
                                       </span>
                                     )}
-                                    {(product.vitrine ?? product.destaque) && (
+                                    {showcaseProductIds.includes(String(product.id)) && (
                                       <span className="inline-flex items-center gap-1 rounded-full border border-yellow-300/30 bg-yellow-300/10 px-2 py-0.5 text-[10px] font-black uppercase text-yellow-100">
                                         <Star size={11} />
                                         Vitrine
@@ -3801,9 +3842,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                     <Edit3 size={14} />
                                     Editar
                                   </button>
-                                  <button type="button" onClick={() => void toggleProductShowcase(product)} className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${(product.vitrine ?? product.destaque) ? "border border-yellow-300/30 bg-yellow-300/10 text-yellow-100 hover:bg-yellow-300/[0.18]" : "border border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>
+                                  <button type="button" onClick={() => void toggleProductShowcase(product)} disabled={showcaseLoading} className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${showcaseProductIds.includes(String(product.id)) ? "border border-yellow-300/30 bg-yellow-300/10 text-yellow-100 hover:bg-yellow-300/[0.18]" : "border border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>
                                     <Star size={14} />
-                                    {(product.vitrine ?? product.destaque) ? "Tirar vitrine" : "Vitrine"}
+                                    {showcaseProductIds.includes(String(product.id)) ? "Tirar vitrine" : "Vitrine"}
                                   </button>
                                   <button type="button" onClick={() => toggleProductStatus(product)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${product.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
                                     }`}>
@@ -3826,10 +3867,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <p className="text-sm font-black text-white">Vitrine do site</p>
-                    <p className="mt-1 text-xs text-zinc-500">Produtos marcados aqui aparecem no bloco “Mais pedidos” do cardápio.</p>
+                    <p className="mt-1 text-xs text-zinc-500">Escolha ate 3 produtos para aparecer no bloco “Mais pedidos” do cardápio.</p>
                   </div>
                   <span className="rounded-full border border-yellow-300/25 bg-yellow-300/10 px-3 py-1 text-xs font-black text-yellow-100">
-                    {showcaseProducts.length} em destaque
+                    {showcaseLoading ? "Carregando..." : `${showcaseProducts.length}/${showcaseProductLimit} em destaque`}
                   </span>
                 </div>
 
@@ -3841,7 +3882,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   )}
 
                   {menuAdmin.products.map((product) => {
-                    const isShowcase = product.vitrine ?? product.destaque ?? false
+                    const isShowcase = showcaseProductIds.includes(String(product.id))
                     const productHighlight = product.highlight ?? product.subtitle
 
                     return (
@@ -3866,7 +3907,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         <button
                           type="button"
                           onClick={() => void toggleProductShowcase(product)}
-                          className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition ${isShowcase ? "border border-yellow-300/30 bg-yellow-300/10 text-yellow-100 hover:bg-yellow-300/[0.18]" : "bg-orange-400 text-black hover:bg-orange-300"}`}
+                          disabled={showcaseLoading}
+                          className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${isShowcase ? "border border-yellow-300/30 bg-yellow-300/10 text-yellow-100 hover:bg-yellow-300/[0.18]" : "bg-orange-400 text-black hover:bg-orange-300"}`}
                         >
                           {isShowcase ? <X size={14} /> : <Star size={14} />}
                           {isShowcase ? "Remover" : "Colocar"}
