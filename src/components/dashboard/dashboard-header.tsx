@@ -218,7 +218,7 @@ export function DashboardHeader({
   }
 
   return (
-    <header className={`shrink-0 rounded-lg border px-4 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl ${
+    <header className={`shrink-0 rounded-lg border px-3 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-4 ${
       storeOpen
         ? "border-white/10 bg-[rgba(18,11,7,0.92)]"
         : "border-red-300/30 bg-[rgba(75,14,14,0.92)]"
@@ -234,13 +234,13 @@ export function DashboardHeader({
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-300">
               Pits em ação
             </p>
-            <h1 className="truncate text-2xl font-black text-white">Central de pedidos</h1>
+            <h1 className="truncate text-xl font-black text-white sm:text-2xl">Central de pedidos</h1>
             <p className={`mt-0.5 truncate text-xs ${storeOpen ? "text-zinc-500" : "text-red-100/70"}`}>{notice}</p>
           </div>
         </div>
 
         <nav className="flex min-w-0 flex-1 justify-center" aria-label="Navegação principal">
-          <div className="grid w-full max-w-[900px] grid-cols-5 gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1">
+          <div className="grid w-full max-w-[900px] grid-cols-2 gap-2 rounded-lg border border-white/10 bg-black/[0.22] p-1 sm:grid-cols-3 lg:grid-cols-5">
           {navigationItems.map((item) => {
             const Icon = item.icon
             const isActive = activePanel === item.value

@@ -8,12 +8,16 @@
 
 html {
   background: #070604;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
+  width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 18% 8%, rgba(255, 106, 0, 0.18), transparent 32rem),
     radial-gradient(circle at 82% 20%, rgba(255, 255, 255, 0.06), transparent 26rem),
@@ -37,6 +41,7 @@ input {
 }
 
 #root {
+  width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
 }
@@ -85,6 +90,73 @@ input {
   }
 
   .dashboard-shell .dashboard-logo {
+    width: 3rem !important;
+    height: 3rem !important;
+    max-width: 3rem;
+    max-height: 3rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  body {
+    overflow-y: auto;
+  }
+
+  .login-screen,
+  #root {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .dashboard-shell {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow: visible !important;
+  }
+
+  .dashboard-shell > section,
+  .dashboard-shell > main,
+  .dashboard-shell > div {
+    min-width: 0;
+  }
+
+  .dashboard-orders-grid {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .dashboard-orders-grid > * {
+    min-width: 0;
+  }
+
+  .dashboard-order-details {
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .dashboard-orders-grid section,
+  .dashboard-orders-grid aside {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-shell {
+    font-size: 0.94rem;
+  }
+
+  .dashboard-shell button,
+  .dashboard-shell input,
+  .dashboard-shell select,
+  .dashboard-shell textarea {
+    max-width: 100%;
+  }
+
+  .dashboard-logo {
     width: 3rem !important;
     height: 3rem !important;
     max-width: 3rem;
