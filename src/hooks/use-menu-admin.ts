@@ -109,6 +109,18 @@ function writeMenuCache(cache: MenuCache) {
   }
 }
 
+function mergeProductDraftState(product: MenuProduct, draft: MenuProductDraft) {
+  const highlight = draft.highlight.trim()
+
+  return {
+    ...product,
+    destaque: draft.vitrine,
+    vitrine: draft.vitrine,
+    highlight: product.highlight || highlight || null,
+    subtitle: product.subtitle || highlight || null,
+  }
+}
+
 export function useMenuAdmin(options: { autoload?: boolean } = {}) {
   const [cachedMenu] = useState(readMenuCache)
   const [categories, setCategories] = useState<MenuCategory[]>(cachedMenu.categories)
@@ -223,36 +235,24 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
 
   async function createProduct(product: MenuProductDraft) {
     const createdProduct = await uploadProductImage(await menuApi.createProduct(product), product)
-    const productWithDraftSubtitle = {
-      ...createdProduct,
-      destaque: createdProduct.destaque || product.vitrine,
-      vitrine: createdProduct.vitrine ?? product.vitrine,
-      highlight: createdProduct.highlight || product.highlight.trim() || null,
-      subtitle: createdProduct.subtitle || product.highlight.trim() || null,
-    }
+    const productWithDraftState = mergeProductDraftState(createdProduct, product)
 
-    setProducts((currentProducts) => sortByName([...currentProducts, productWithDraftSubtitle]))
+    setProducts((currentProducts) => sortByName([...currentProducts, productWithDraftState]))
     setStatus("online")
-    return productWithDraftSubtitle
+    return productWithDraftState
   }
 
   async function updateProduct(id: number, product: MenuProductDraft) {
     const updatedProduct = await uploadProductImage(await menuApi.updateProduct(id, product), product)
-    const productWithDraftSubtitle = {
-      ...updatedProduct,
-      destaque: updatedProduct.destaque || product.vitrine,
-      vitrine: updatedProduct.vitrine ?? product.vitrine,
-      highlight: updatedProduct.highlight || product.highlight.trim() || null,
-      subtitle: updatedProduct.subtitle || product.highlight.trim() || null,
-    }
+    const productWithDraftState = mergeProductDraftState(updatedProduct, product)
 
     setProducts((currentProducts) =>
       sortByName(currentProducts.map((currentProduct) => (
-        currentProduct.id === id ? productWithDraftSubtitle : currentProduct
+        currentProduct.id === id ? productWithDraftState : currentProduct
       )))
     )
     setStatus("online")
-    return productWithDraftSubtitle
+    return productWithDraftState
   }
 
   async function updateProductStatus(product: MenuProduct) {
