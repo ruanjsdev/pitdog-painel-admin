@@ -1,9 +1,11 @@
 type ConnectionStatus = "not-configured" | "offline" | "online"
 
 export function ConnectionStatusBadge({
+  className = "",
   connectionStatus,
   isSyncing,
 }: {
+  className?: string
   connectionStatus: ConnectionStatus
   isSyncing: boolean
 }) {
@@ -21,7 +23,7 @@ export function ConnectionStatusBadge({
         : connectionStatus === "offline"
           ? "border-red-300/25 bg-red-400/10 text-red-100"
           : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
-      }`}
+      } ${className}`}
       title={title}
       aria-label={title}
     >
