@@ -21,6 +21,7 @@ import {
   Save,
   Search,
   Settings,
+  Star,
   Store,
   Truck,
   Upload,
@@ -77,7 +78,7 @@ type DashboardProps = {
 
 type OrderFilter = "todos" | "mesa" | "retirada" | "entrega"
 type StatusFilter = "todos" | Order["status"]
-type MenuPanelSection = "categorias" | "produtos" | "adicionais"
+type MenuPanelSection = "categorias" | "produtos" | "vitrine" | "adicionais"
 type CashTab = "todos" | "hamburgueres" | "cachorros" | "refrigerantes" | "adicionais" | "outros"
 type MainPanel = "dashboard" | "pedidos" | "produtos" | "motoboys" | "configuracoes" | "cardápio" | "caixa" | "clientes" | "limpeza" | "zap"
 type OrderDraft = Pick<Order, "customer" | "delivery" | "items" | "notes" | "payment" | "phone" | "total"> & {
@@ -141,7 +142,7 @@ const cancelReasons = [
   "Pedido feito por engano",
 ]
 
-const deliveryOptions: DeliveryType[] = ["Delivery", "Mesa", "Retirada"]
+const deliveryOptions: DeliveryType[] = ["Delivery", "Retirada"]
 const paymentOptions = ["Pix", "Dinheiro", "Cartão de crédito", "Cartão de débito"]
 const defaultDeliveryFee = 5
 const couriersStorageKey = "pitsdog:admin:couriers:v1"
@@ -176,6 +177,7 @@ const emptyProductDraft: MenuProductDraft = {
   nome: "",
   permiteAdicionais: false,
   preco: 0,
+  vitrine: false,
 }
 
 const emptyAdditionalDraft: MenuAdditionalDraft = {
@@ -1089,6 +1091,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
       })
   }, [menuAdmin.categories, visibleProducts])
 
+  const showcaseProducts = useMemo(
+    () => menuAdmin.products.filter((product) => product.vitrine ?? product.destaque),
+    [menuAdmin.products]
+  )
+
   const cashOrders = useMemo(
     () => visibleOrderList.filter((order) => order.status !== "cancelado"),
     [visibleOrderList]
@@ -1924,6 +1931,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       nome: product.nome,
       permiteAdicionais: product.permiteAdicionais ?? false,
       preco: product.preco,
+      vitrine: product.vitrine ?? product.destaque ?? false,
     })
     setMenuPanelSection("produtos")
     showNotice(`Editando produto ${product.nome}.`)
@@ -1960,12 +1968,44 @@ export function Dashboard({ onLogout }: DashboardProps) {
           nome: product.nome,
           permiteAdicionais: product.permiteAdicionais ?? false,
           preco: product.preco,
+          vitrine: product.vitrine ?? product.destaque ?? false,
         })
       }
       showNotice(nextStatus ? "Produto ativado no cardápio." : "Produto desativado no cardápio.")
     } catch (error) {
       menuAdmin.applyProductStatus(product.id, product.ativo)
       showNotice(error instanceof Error ? error.message : "Não foi possível alterar o produto na API agora.")
+    }
+  }
+
+  async function toggleProductShowcase(product: MenuProduct) {
+    const nextShowcase = !(product.vitrine ?? product.destaque ?? false)
+
+    menuAdmin.applyProductShowcase(product.id, nextShowcase)
+    showNotice(nextShowcase ? "Produto colocado na vitrine." : "Produto removido da vitrine.")
+
+    try {
+      await menuAdmin.updateProduct(product.id, {
+        ativo: product.ativo,
+        addonIds: product.addonIds ?? [],
+        categoriaId: product.categoriaId,
+        descricao: product.descricao,
+        flavorIds: product.flavorIds ?? [],
+        flavorRequired: product.flavorRequired ?? false,
+        hasFlavors: product.hasFlavors ?? false,
+        highlight: product.highlight ?? product.subtitle ?? "",
+        imageFile: null,
+        imagem: product.imageUrl ?? product.imagem ?? "",
+        maxFlavors: product.maxFlavors ?? 1,
+        nome: product.nome,
+        permiteAdicionais: product.permiteAdicionais ?? false,
+        preco: product.preco,
+        vitrine: nextShowcase,
+      })
+      showStatusToast(nextShowcase ? `${product.nome} apareceu na vitrine.` : `${product.nome} saiu da vitrine.`, 8500)
+    } catch (error) {
+      menuAdmin.applyProductShowcase(product.id, product.vitrine ?? product.destaque ?? false)
+      showNotice(error instanceof Error ? error.message : "Não foi possível atualizar a vitrine na API agora.")
     }
   }
 
@@ -2048,7 +2088,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const filters: Array<{ label: string; value: OrderFilter; count: number }> = [
     { label: "Todos os pedidos", value: "todos", count: counts.all },
-    { label: "Mesa", value: "mesa", count: counts.mesa },
     { label: "Retirada", value: "retirada", count: counts.retirada },
     { label: "Entrega", value: "entrega", count: counts.entrega },
   ]
@@ -2953,18 +2992,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
                           </div>
                         )}
 
-                        {draft.delivery === "Mesa" && (
-                          <label className="block">
-                            <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Número da mesa</span>
-                            <input
-                              value={draft.tableNumber}
-                              onChange={(event) => setDraft({ ...draft, tableNumber: event.target.value })}
-                              placeholder="Ex: 12"
-                              className="h-11 w-full rounded-lg border border-white/10 bg-black/[0.28] px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-orange-300/60"
-                            />
-                          </label>
-                        )}
-
                         {draft.delivery === "Retirada" && (
                           <label className="block">
                             <span className="mb-2 block text-xs font-black uppercase text-zinc-500">Identificação da retirada</span>
@@ -3314,6 +3341,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               {([
                 ["categorias", "Categorias", menuAdmin.categories.length],
                 ["produtos", "Produtos", visibleProducts.length],
+                ["vitrine", "Vitrine", showcaseProducts.length],
                 ["adicionais", "Adicionais", menuAdmin.additionals.length],
               ] as Array<[MenuPanelSection, string, number]>).map(([value, label, count]) => (
                 <button
@@ -3600,6 +3628,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       />
                     </label>
 
+                    <label className="flex items-center justify-between rounded-lg border border-orange-300/25 bg-orange-400/[0.08] px-3 py-2 text-xs font-black uppercase text-orange-100">
+                      Mostrar na vitrine
+                      <input
+                        type="checkbox"
+                        checked={productDraft.vitrine}
+                        onChange={(event) => setProductDraft({ ...productDraft, vitrine: event.target.checked })}
+                        className="h-4 w-4 accent-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </label>
+
                     <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/[0.24] px-3 py-2 text-xs font-black uppercase text-zinc-400">
                       Permite adicionais
                       <input
@@ -3747,6 +3785,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                         Adicionais
                                       </span>
                                     )}
+                                    {(product.vitrine ?? product.destaque) && (
+                                      <span className="inline-flex items-center gap-1 rounded-full border border-yellow-300/30 bg-yellow-300/10 px-2 py-0.5 text-[10px] font-black uppercase text-yellow-100">
+                                        <Star size={11} />
+                                        Vitrine
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">
                                     {product.descricao || "Sem descrição"} | {product.imageUrl ?? product.imagem ?? "Sem imagem"}
@@ -3756,6 +3800,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                                   <button type="button" onClick={() => editProduct(product)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                                     <Edit3 size={14} />
                                     Editar
+                                  </button>
+                                  <button type="button" onClick={() => void toggleProductShowcase(product)} className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${(product.vitrine ?? product.destaque) ? "border border-yellow-300/30 bg-yellow-300/10 text-yellow-100 hover:bg-yellow-300/[0.18]" : "border border-white/10 bg-white/5 text-white hover:bg-white/10"}`}>
+                                    <Star size={14} />
+                                    {(product.vitrine ?? product.destaque) ? "Tirar vitrine" : "Vitrine"}
                                   </button>
                                   <button type="button" onClick={() => toggleProductStatus(product)} className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${product.ativo ? "border border-red-300/25 bg-red-400/10 text-red-100 hover:bg-red-400/[0.18]" : "bg-emerald-400 text-black hover:bg-emerald-300"
                                     }`}>
@@ -3769,6 +3817,63 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {menuPanelSection === "vitrine" && (
+              <div className="mt-4 rounded-lg border border-white/10 bg-black/[0.18] p-3">
+                <div className="flex flex-col gap-3 border-b border-white/10 pb-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-white">Vitrine do site</p>
+                    <p className="mt-1 text-xs text-zinc-500">Produtos marcados aqui aparecem no bloco “Mais pedidos” do cardápio.</p>
+                  </div>
+                  <span className="rounded-full border border-yellow-300/25 bg-yellow-300/10 px-3 py-1 text-xs font-black text-yellow-100">
+                    {showcaseProducts.length} em destaque
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  {menuAdmin.products.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.04] p-6 text-center text-sm font-bold text-zinc-500 lg:col-span-2">
+                      Nenhum produto carregado do backend do cardápio.
+                    </div>
+                  )}
+
+                  {menuAdmin.products.map((product) => {
+                    const isShowcase = product.vitrine ?? product.destaque ?? false
+                    const productHighlight = product.highlight ?? product.subtitle
+
+                    return (
+                      <div key={product.id} className={`flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between ${isShowcase ? "border-yellow-300/25 bg-yellow-300/[0.08]" : "border-white/10 bg-white/[0.035]"}`}>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="truncate text-sm font-black text-white">{product.nome}</strong>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${product.ativo ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-100"}`}>
+                              {product.ativo ? "Ativo" : "Inativo"}
+                            </span>
+                            {isShowcase && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-yellow-300/30 bg-yellow-300/10 px-2 py-0.5 text-[10px] font-black uppercase text-yellow-100">
+                                <Star size={11} />
+                                Vitrine
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">
+                            {productHighlight || product.descricao || "Sem descrição"} | R$ {product.preco}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void toggleProductShowcase(product)}
+                          className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition ${isShowcase ? "border border-yellow-300/30 bg-yellow-300/10 text-yellow-100 hover:bg-yellow-300/[0.18]" : "bg-orange-400 text-black hover:bg-orange-300"}`}
+                        >
+                          {isShowcase ? <X size={14} /> : <Star size={14} />}
+                          {isShowcase ? "Remover" : "Colocar"}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

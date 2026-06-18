@@ -518,7 +518,7 @@ export const ordersApi = {
     return adminRequest("/admin/loja/status", {
       body: JSON.stringify({
         aceitaEntrega: open,
-        aceitaMesa: open,
+        aceitaMesa: false,
         aceitaRetirada: open,
         aberta: open,
         estadoOperacao: open ? "ABERTA" : "FECHADA_TOTALMENTE",

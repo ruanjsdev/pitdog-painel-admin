@@ -108,8 +108,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1366,
     height: 768,
-    minWidth: 1024,
-    minHeight: 680,
+    minWidth: 900,
+    minHeight: 560,
     title: "Pits Dog Admin",
     icon: appIcon,
     backgroundColor: "#070604",
@@ -119,7 +119,7 @@ function createWindow() {
     minimizable: true,
     maximizable: true,
     closable: true,
-    fullscreenable: false,
+    fullscreenable: true,
 
     autoHideMenuBar: true,
     show: false,
@@ -422,11 +422,11 @@ function normalizeReceiptText(value = "") {
     .split("\n")
     .flatMap((line) => {
       const cleanLine = line.trimEnd();
-      if (cleanLine.length <= 42) return [cleanLine];
+      if (cleanLine.length <= 24) return [cleanLine];
 
       const chunks = [];
-      for (let index = 0; index < cleanLine.length; index += 42) {
-        chunks.push(cleanLine.slice(index, index + 42));
+      for (let index = 0; index < cleanLine.length; index += 24) {
+        chunks.push(cleanLine.slice(index, index + 24));
       }
       return chunks;
     })
@@ -434,7 +434,7 @@ function normalizeReceiptText(value = "") {
 }
 
 function buildReceiptPayload(text) {
-  return Buffer.from(`\x1b@${normalizeReceiptText(text)}\n\n\n\x1dV\x00`, "utf8");
+  return Buffer.from(`\x1b@\x1b!\x30${normalizeReceiptText(text)}\n\n\n\x1b!\x00\x1dV\x00`, "utf8");
 }
 
 function buildPrinterTestText(config) {

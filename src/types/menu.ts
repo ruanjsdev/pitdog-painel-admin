@@ -19,6 +19,7 @@ export type MenuProduct = {
   addons?: MenuAdditional[]
   nome: string
   destaque?: boolean
+  vitrine?: boolean
   highlight?: string | null
   subtitle?: string | null
   descricao: string
@@ -37,6 +38,7 @@ export type MenuProduct = {
 export type MenuProductDraft = {
   addonIds?: string[]
   nome: string
+  vitrine: boolean
   highlight: string
   descricao: string
   preco: number

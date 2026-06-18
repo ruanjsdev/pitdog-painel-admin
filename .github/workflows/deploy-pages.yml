@@ -1,0 +1,56 @@
+name: Deploy Admin to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - electron-desktop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pages: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build admin
+        run: npm run build
+        env:
+          VITE_API_URL: https://pitsdog-api-production.up.railway.app
+          VITE_API_BASE_URL: https://pitsdog-api-production.up.railway.app
+          VITE_MENU_API_BASE_URL: https://pitsdog-api-production.up.railway.app
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -25,6 +25,7 @@ type BackendProduct = Omit<MenuProduct, "imagem" | "imageUrl"> & {
   addonIds?: string[]
   categoriaNome?: string
   destaque?: boolean
+  vitrine?: boolean
   flavorIds?: string[]
   flavorRequired?: boolean
   hasFlavors?: boolean
@@ -203,7 +204,8 @@ function mapProduct(product: BackendProduct): MenuProduct {
     preco: Number(product.preco ?? 0),
     descricao: decodedDescription.description,
     highlight,
-    destaque: Boolean(product.destaque) || Boolean(highlight),
+    destaque: Boolean(product.destaque ?? product.vitrine),
+    vitrine: Boolean(product.vitrine ?? product.destaque),
     flavorIds: product.flavorIds ?? [],
     flavorRequired: product.flavorRequired ?? false,
     hasFlavors: product.hasFlavors ?? false,
@@ -297,7 +299,8 @@ export const menuApi = {
           addonIds: product.addonIds ?? [],
           categoriaId: product.categoriaId,
           descricao: writeProductDescription(product.descricao, highlight),
-          destaque: Boolean(highlight),
+          destaque: product.vitrine,
+          vitrine: product.vitrine,
           highlight: highlight || null,
           flavorIds: product.flavorIds ?? [],
           flavorRequired: product.flavorRequired ?? false,
@@ -324,7 +327,8 @@ export const menuApi = {
           addonIds: product.addonIds ?? [],
           categoriaId: product.categoriaId,
           descricao: writeProductDescription(product.descricao, highlight),
-          destaque: Boolean(highlight),
+          destaque: product.vitrine,
+          vitrine: product.vitrine,
           highlight: highlight || null,
           flavorIds: product.flavorIds ?? [],
           flavorRequired: product.flavorRequired ?? false,

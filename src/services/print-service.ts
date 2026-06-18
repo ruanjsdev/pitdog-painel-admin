@@ -37,18 +37,20 @@ function normalizeReceiptText(value: unknown) {
     .replace(/[^\x20-\x7E\n]/g, "")
 }
 
-function centerLine(value: string, width = 32) {
+const receiptTextWidth = 24
+
+function centerLine(value: string, width = receiptTextWidth) {
   const text = normalizeReceiptText(value).slice(0, width)
   const leftPadding = Math.max(0, Math.floor((width - text.length) / 2))
 
   return `${" ".repeat(leftPadding)}${text}`
 }
 
-function divider(width = 32) {
+function divider(width = receiptTextWidth) {
   return "-".repeat(width)
 }
 
-function wrapLine(value: string, width = 32) {
+function wrapLine(value: string, width = receiptTextWidth) {
   const words = normalizeReceiptText(value).split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let currentLine = ""
@@ -87,11 +89,25 @@ function buildTicketText(title: string, order: Order, kind: TicketKind) {
     centerLine(`${order.delivery.toUpperCase()} #${order.id}`),
     divider(),
     `Cliente: ${normalizeReceiptText(order.customer || "-")}`,
-    `Telefone: ${normalizeReceiptText(order.phone || "-")}`,
-    `Horario: ${normalizeReceiptText(order.time || printedAt)}`,
-    `Impresso: ${normalizeReceiptText(printedAt)}`,
     divider(),
   ]
+
+  lines.push("ITENS")
+
+  if (order.items.length) {
+    order.items.forEach((item) => {
+      wrapLine(`* ${item}`).forEach((line) => lines.push(line))
+      lines.push("")
+    })
+  } else {
+    lines.push("Pedido sem itens detalhados")
+  }
+
+  lines.push(divider())
+  lines.push(`Telefone: ${normalizeReceiptText(order.phone || "-")}`)
+  lines.push(`Horario: ${normalizeReceiptText(order.time || printedAt)}`)
+  lines.push(`Impresso: ${normalizeReceiptText(printedAt)}`)
+  lines.push(divider())
 
   if (isDelivery) {
     lines.push("ENTREGA")
@@ -114,16 +130,6 @@ function buildTicketText(title: string, order: Order, kind: TicketKind) {
     }
 
     lines.push(divider())
-  }
-
-  lines.push("ITENS")
-
-  if (order.items.length) {
-    order.items.forEach((item) => {
-      wrapLine(`* ${item}`).forEach((line) => lines.push(line))
-    })
-  } else {
-    lines.push("Pedido sem itens detalhados")
   }
 
   if (order.notes) {
@@ -194,33 +200,33 @@ function buildTicketHtml(title: string, order: Order, kind: TicketKind) {
       body {
         width: 72mm;
         margin: 0;
-        padding: 4mm 2mm 8mm;
+        padding: 4mm 2mm 10mm;
         color: #000;
         font-family: Arial, Helvetica, sans-serif;
-        font-size: 12px;
-        line-height: 1.25;
+        font-size: 15px;
+        line-height: 1.32;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
       h1, h2, p { margin: 0; }
-      h1 { font-size: 20px; text-align: center; }
-      h2 { margin-top: 2mm; font-size: 16px; text-align: center; }
+      h1 { font-size: 25px; text-align: center; }
+      h2 { margin-top: 2mm; font-size: 19px; text-align: center; }
       ul { margin: 2mm 0 0; padding: 0; list-style: none; }
-      li { padding: 1.5mm 0; border-bottom: 1px dashed #000; font-size: 13px; font-weight: 700; }
+      li { padding: 2mm 0; border-bottom: 1px dashed #000; font-size: 17px; font-weight: 900; }
       .pill {
         margin: 2mm auto;
         padding: 1.5mm;
         border: 2px solid #000;
         text-align: center;
-        font-size: 17px;
+        font-size: 20px;
         font-weight: 900;
       }
       .meta { margin-top: 2mm; display: grid; gap: 1mm; }
       .block { margin-top: 3mm; padding-top: 2mm; border-top: 2px solid #000; }
-      .block strong { display: block; margin-bottom: 1mm; font-size: 13px; }
-      .itemsTitle { margin-top: 3mm; padding-top: 2mm; border-top: 2px solid #000; font-size: 13px; font-weight: 900; }
-      .total { margin-top: 1mm; font-size: 15px; font-weight: 900; }
-      .footer { margin-top: 4mm; border-top: 1px dashed #000; padding-top: 2mm; text-align: center; font-size: 10px; }
+      .block strong { display: block; margin-bottom: 1mm; font-size: 16px; }
+      .itemsTitle { margin-top: 3mm; padding-top: 2mm; border-top: 3px solid #000; font-size: 18px; font-weight: 900; }
+      .total { margin-top: 1mm; font-size: 18px; font-weight: 900; }
+      .footer { margin-top: 4mm; border-top: 1px dashed #000; padding-top: 2mm; text-align: center; font-size: 12px; }
     </style>
   </head>
   <body>
@@ -229,14 +235,16 @@ function buildTicketHtml(title: string, order: Order, kind: TicketKind) {
     <div class="pill">${escapeHtml(order.delivery).toUpperCase()} #${escapeHtml(order.id)}</div>
     <section class="meta">
       <p><strong>Cliente:</strong> ${escapeHtml(order.customer || "-")}</p>
+    </section>
+    <p class="itemsTitle">ITENS</p>
+    <ul>${items}</ul>
+    <section class="meta">
       <p><strong>Telefone:</strong> ${escapeHtml(order.phone || "-")}</p>
       <p><strong>Horário:</strong> ${escapeHtml(order.time || printedAt)}</p>
       <p><strong>Impresso:</strong> ${escapeHtml(printedAt)}</p>
     </section>
     ${deliveryBlock}
     ${paymentBlock}
-    <p class="itemsTitle">ITENS</p>
-    <ul>${items}</ul>
     ${order.notes ? `<section class="block"><strong>OBSERVAÇÃO</strong><p>${escapeHtml(order.notes)}</p></section>` : ""}
     <p class="footer">${kind === "kitchen" ? "Comanda da cozinha" : "Etiqueta/recibo de entrega"}</p>
   </body>

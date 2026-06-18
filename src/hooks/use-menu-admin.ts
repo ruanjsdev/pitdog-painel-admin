@@ -225,7 +225,8 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
     const createdProduct = await uploadProductImage(await menuApi.createProduct(product), product)
     const productWithDraftSubtitle = {
       ...createdProduct,
-      destaque: createdProduct.destaque || Boolean(product.highlight.trim()),
+      destaque: createdProduct.destaque || product.vitrine,
+      vitrine: createdProduct.vitrine ?? product.vitrine,
       highlight: createdProduct.highlight || product.highlight.trim() || null,
       subtitle: createdProduct.subtitle || product.highlight.trim() || null,
     }
@@ -239,7 +240,8 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
     const updatedProduct = await uploadProductImage(await menuApi.updateProduct(id, product), product)
     const productWithDraftSubtitle = {
       ...updatedProduct,
-      destaque: updatedProduct.destaque || Boolean(product.highlight.trim()),
+      destaque: updatedProduct.destaque || product.vitrine,
+      vitrine: updatedProduct.vitrine ?? product.vitrine,
       highlight: updatedProduct.highlight || product.highlight.trim() || null,
       subtitle: updatedProduct.subtitle || product.highlight.trim() || null,
     }
@@ -268,6 +270,14 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
     setProducts((currentProducts) =>
       sortByName(currentProducts.map((currentProduct) => (
         currentProduct.id === id ? { ...currentProduct, ativo } : currentProduct
+      )))
+    )
+  }
+
+  function applyProductShowcase(id: number, vitrine: boolean) {
+    setProducts((currentProducts) =>
+      sortByName(currentProducts.map((currentProduct) => (
+        currentProduct.id === id ? { ...currentProduct, destaque: vitrine, vitrine } : currentProduct
       )))
     )
   }
@@ -348,6 +358,7 @@ export function useMenuAdmin(options: { autoload?: boolean } = {}) {
     applyAdditionalStatus,
     applyCategoryStatus,
     applyProductStatus,
+    applyProductShowcase,
     categories,
     createAdditional,
     createCategory,
