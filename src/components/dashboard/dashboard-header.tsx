@@ -308,7 +308,7 @@ export function DashboardHeader({
 
             {settingsOpen && (
               <div
-                className="fixed inset-2 z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-white/10 bg-[#100b08] shadow-[0_28px_70px_rgba(0,0,0,0.58)] sm:absolute sm:inset-auto sm:right-0 sm:top-11 sm:w-[min(92vw,360px)] sm:max-h-[calc(100vh-96px)]"
+                className="dashboard-settings-menu fixed inset-2 z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-white/10 bg-[#100b08] shadow-[0_28px_70px_rgba(0,0,0,0.58)] sm:absolute sm:inset-auto sm:right-0 sm:top-11 sm:w-[min(92vw,360px)] sm:max-h-[calc(100vh-96px)]"
                 role="menu"
               >
                 {soundPickerOpen ? (

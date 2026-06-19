@@ -97,6 +97,91 @@ input {
   }
 }
 
+@media (max-height: 820px) and (min-width: 900px) and (max-width: 1499px) {
+  body {
+    overflow-y: auto;
+  }
+
+  .login-screen,
+  #root {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .dashboard-shell {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow: visible !important;
+    padding-inline: 0.75rem !important;
+  }
+
+  .dashboard-shell > * {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-settings-menu {
+    position: fixed !important;
+    inset: 0.75rem 0.75rem auto auto !important;
+    width: min(22rem, calc(100vw - 1.5rem)) !important;
+    max-height: calc(100dvh - 1.5rem) !important;
+  }
+
+  .dashboard-order-metrics {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dashboard-order-metrics > div:first-child > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-order-metrics > div:last-child {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-orders-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .dashboard-order-filters {
+    display: block;
+  }
+
+  .dashboard-order-filter-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .dashboard-order-filter-buttons > button {
+    height: 2.75rem;
+  }
+
+  .dashboard-order-filters > label {
+    margin-top: 0.75rem;
+  }
+
+  .dashboard-order-list,
+  .dashboard-order-details {
+    min-height: auto;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .dashboard-order-list > div:last-child {
+    max-height: 42dvh;
+    overflow-y: auto;
+  }
+
+  .dashboard-order-details {
+    grid-column: auto !important;
+  }
+}
+
 @media (max-width: 1023px) {
   body {
     overflow-y: auto;

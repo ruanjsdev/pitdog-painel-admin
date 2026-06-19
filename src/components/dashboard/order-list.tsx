@@ -27,7 +27,7 @@ export function OrderList({
   setSearch,
 }: Props) {
   return (
-    <section className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
+    <section className="dashboard-order-list flex min-h-0 flex-col rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
       <div className="flex flex-col gap-3 border-b border-white/10 pb-3 md:flex-row md:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Pedidos ativos</p>

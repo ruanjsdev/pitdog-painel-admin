@@ -24,7 +24,7 @@ export function OrderFilters({
   setHideFinished,
 }: Props) {
   return (
-    <aside className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
+    <aside className="dashboard-order-filters flex min-h-0 flex-col rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-300">Fila</p>
@@ -33,7 +33,7 @@ export function OrderFilters({
         <Filter className="text-zinc-400" size={18} />
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="dashboard-order-filter-buttons mt-3 space-y-2">
         {filters.map((filter) => (
           <button
             key={filter.value}

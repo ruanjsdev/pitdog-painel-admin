@@ -33,7 +33,7 @@ export function OrderMetrics({
   syncClock,
 }: Props) {
   return (
-    <section className="mt-3 grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <section className="dashboard-order-metrics mt-3 grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="rounded-lg border border-white/10 bg-[rgba(18,11,7,0.84)] p-3">
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
           {metrics.map((metric) => {
